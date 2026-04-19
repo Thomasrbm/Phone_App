@@ -42,7 +42,8 @@ export default function TaskItem({
       ? `Fait à ${format(parseISO(task.doneAt), 'HH:mm')}`
       : task.description;
 
-  const tickColor = task.color ?? theme.colors.done;
+  const hasColor = task.color !== null;
+  const tickColor = task.color ?? theme.colors.textMuted;
   const rowBg = softColorBg(task.color);
 
   const renderRightActions = () => {
@@ -114,7 +115,7 @@ export default function TaskItem({
           <View
             style={[
               styles.box,
-              task.done && {
+              task.done && hasColor && {
                 backgroundColor: tickColor,
                 borderColor: tickColor,
               },
@@ -124,7 +125,9 @@ export default function TaskItem({
               <Feather
                 name="check"
                 size={16}
-                color={theme.colors.textInverse}
+                color={
+                  hasColor ? theme.colors.textInverse : theme.colors.textMuted
+                }
               />
             ) : null}
           </View>

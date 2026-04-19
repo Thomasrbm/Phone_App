@@ -2,6 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,35 +27,31 @@ type Props = {
 };
 
 export default function AddTaskInput({ onSubmit }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<string | null>(null);
-  const inputRef = useRef<TextInput>(null);
+  const titleRef = useRef<TextInput>(null);
+  const descRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (expanded) {
-      const t = setTimeout(() => inputRef.current?.focus(), 50);
+    if (open) {
+      const t = setTimeout(() => titleRef.current?.focus(), 100);
       return () => clearTimeout(t);
     }
-  }, [expanded]);
-
-  // Auto-collapse when keyboard closes (OS back, tap outside, etc.)
-  // Color taps are safe: keyboardShouldPersistTaps='always' on the color
-  // ScrollView keeps the keyboard open.
-  useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidHide', () => {
-      setExpanded(false);
-    });
-    return () => sub.remove();
-  }, []);
+  }, [open]);
 
   const canSubmit = title.trim().length > 0;
 
+  const close = () => {
+    titleRef.current?.blur();
+    descRef.current?.blur();
+    Keyboard.dismiss();
+    setOpen(false);
+  };
+
   const submit = () => {
     if (!canSubmit) return;
-    inputRef.current?.blur();
-    Keyboard.dismiss();
     onSubmit({
       title: title.trim(),
       description: description.trim() || null,
@@ -60,26 +60,24 @@ export default function AddTaskInput({ onSubmit }: Props) {
     setTitle('');
     setDescription('');
     setColor(null);
-    setExpanded(false);
+    close();
   };
 
   const cancel = () => {
-    inputRef.current?.blur();
-    Keyboard.dismiss();
-    setExpanded(false);
+    // Keep draft (title, desc, color) — only close
+    close();
   };
 
   const pickColor = (c: string | null) => {
     setColor(c);
-    // Re-focus input so the keyboard doesn't close on color tap
-    inputRef.current?.focus();
+    titleRef.current?.focus();
   };
 
-  if (!expanded) {
-    return (
+  return (
+    <>
       <TouchableOpacity
         style={styles.collapsed}
-        onPress={() => setExpanded(true)}
+        onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
         <Text style={styles.collapsedText}>Ajouter une nouvelle tâche</Text>
@@ -87,65 +85,101 @@ export default function AddTaskInput({ onSubmit }: Props) {
           <Feather name="plus" size={18} color={theme.colors.textInverse} />
         </View>
       </TouchableOpacity>
-    );
-  }
 
-  return (
-    <View style={styles.expanded}>
-      <View style={styles.titleRow}>
-        <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
-          <Feather name="x" size={20} color={theme.colors.textMuted} />
-        </TouchableOpacity>
-        <TextInput
-          ref={inputRef}
-          value={title}
-          onChangeText={setTitle}
-          onSubmitEditing={submit}
-          placeholder="Titre de la tâche"
-          placeholderTextColor={theme.colors.textSubtle}
-          style={styles.titleInput}
-          returnKeyType="done"
-          blurOnSubmit={false}
-        />
-        <TouchableOpacity
-          onPress={submit}
-          style={[styles.btnSmall, !canSubmit && styles.btnDisabled]}
-          disabled={!canSubmit}
-        >
-          <Feather name="plus" size={18} color={theme.colors.textInverse} />
-        </TouchableOpacity>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.colorRow}
-        keyboardShouldPersistTaps="always"
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        onRequestClose={cancel}
+        statusBarTranslucent
       >
-        {TASK_COLORS.map((c) => {
-          const selected = c.value === color;
-          return (
-            <TouchableOpacity
-              key={c.id}
-              onPress={() => pickColor(c.value)}
-              style={[
-                styles.colorDot,
-                { backgroundColor: c.value ?? theme.colors.surfaceAlt },
-                selected && styles.colorDotSelected,
-                !c.value && styles.colorDotNone,
-              ]}
-            />
-          );
-        })}
-      </ScrollView>
-      <TextInput
-        value={description}
-        onChangeText={setDescription}
-        placeholder="Description (optionnel)"
-        placeholderTextColor={theme.colors.textSubtle}
-        style={styles.descInput}
-        returnKeyType="done"
-      />
-    </View>
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.backdrop} onPress={cancel} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.kavWrap}
+            pointerEvents="box-none"
+          >
+            <View style={styles.sheet}>
+              <View style={styles.titleRow}>
+                <TouchableOpacity
+                  onPress={cancel}
+                  style={styles.iconBtn}
+                  hitSlop={8}
+                >
+                  <Feather
+                    name="x"
+                    size={22}
+                    color={theme.colors.textMuted}
+                  />
+                </TouchableOpacity>
+                <TextInput
+                  ref={titleRef}
+                  value={title}
+                  onChangeText={setTitle}
+                  onSubmitEditing={() => descRef.current?.focus()}
+                  placeholder="Titre de la tâche"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  style={styles.titleInput}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                />
+                <TouchableOpacity
+                  onPress={submit}
+                  style={[styles.btnPrimary, !canSubmit && styles.btnDisabled]}
+                  disabled={!canSubmit}
+                >
+                  <Feather
+                    name="plus"
+                    size={20}
+                    color={theme.colors.textInverse}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.colorRow}
+                keyboardShouldPersistTaps="always"
+              >
+                {TASK_COLORS.map((c) => {
+                  const selected = c.value === color;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      onPress={() => pickColor(c.value)}
+                      style={[
+                        styles.colorDot,
+                        { backgroundColor: c.value ?? theme.colors.surfaceAlt },
+                        selected && styles.colorDotSelected,
+                        !c.value && styles.colorDotNone,
+                      ]}
+                    />
+                  );
+                })}
+              </ScrollView>
+
+              <Pressable
+                onPress={() => descRef.current?.focus()}
+                style={styles.descWrap}
+              >
+                <TextInput
+                  ref={descRef}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Description (optionnel)"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  style={styles.descInput}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -165,33 +199,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.md,
     color: theme.colors.textMuted,
   },
-  expanded: {
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleInput: {
-    flex: 1,
-    fontSize: theme.font.md,
-    color: theme.colors.text,
-    paddingVertical: 4,
-    paddingHorizontal: theme.spacing.sm,
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.radius.sm,
-    marginHorizontal: 4,
-  },
   btnSmall: {
     width: 32,
     height: 32,
@@ -200,33 +207,87 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  modalRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  kavWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleInput: {
+    flex: 1,
+    fontSize: theme.font.lg,
+    color: theme.colors.text,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.md,
+    marginHorizontal: theme.spacing.xs,
+  },
+  btnPrimary: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   btnDisabled: {
     opacity: 0.3,
   },
   colorRow: {
-    paddingTop: 6,
-    paddingBottom: 4,
-    paddingHorizontal: 36,
-    gap: 8,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.xs,
+    gap: theme.spacing.md,
+    alignItems: 'center',
   },
   colorDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   colorDotNone: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     borderStyle: 'dashed',
   },
   colorDotSelected: {
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: theme.colors.text,
   },
+  descWrap: {
+    marginTop: theme.spacing.sm,
+    minHeight: 100,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+  },
   descInput: {
-    fontSize: theme.font.sm,
+    fontSize: theme.font.md,
     color: theme.colors.text,
-    paddingVertical: 2,
-    paddingHorizontal: theme.spacing.sm + 32,
+    minHeight: 76,
   },
 });

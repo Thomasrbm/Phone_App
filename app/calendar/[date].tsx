@@ -33,7 +33,13 @@ import {
 import { theme } from '@/lib/theme';
 
 type ListItem =
-  | { type: 'header'; key: string; title: string }
+  | {
+      type: 'header';
+      key: string;
+      title: string;
+      sectionTaskIds: string[];
+      isFirst: boolean;
+    }
   | { type: 'task'; key: string; task: Task };
 
 export default function DayScreen() {
@@ -83,15 +89,27 @@ export default function DayScreen() {
     const todo = filtered.filter((t) => !t.done);
     const done = filtered.filter((t) => t.done);
     const out: ListItem[] = [];
+    let isFirst = true;
     if (todo.length > 0) {
-      out.push({ type: 'header', key: 'h-todo', title: 'À faire' });
-      for (const t of todo)
-        out.push({ type: 'task', key: t.id, task: t });
+      out.push({
+        type: 'header',
+        key: 'h-todo',
+        title: 'À faire',
+        sectionTaskIds: todo.map((t) => t.id),
+        isFirst,
+      });
+      isFirst = false;
+      for (const t of todo) out.push({ type: 'task', key: t.id, task: t });
     }
     if (done.length > 0) {
-      out.push({ type: 'header', key: 'h-done', title: 'Faits' });
-      for (const t of done)
-        out.push({ type: 'task', key: t.id, task: t });
+      out.push({
+        type: 'header',
+        key: 'h-done',
+        title: 'Faits',
+        sectionTaskIds: done.map((t) => t.id),
+        isFirst,
+      });
+      for (const t of done) out.push({ type: 'task', key: t.id, task: t });
     }
     return out;
   }, [filtered]);
@@ -142,6 +160,19 @@ export default function DayScreen() {
     }
     setSelectedIds(new Set());
     reload(true);
+  };
+
+  const selectAllInSection = (ids: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allAlreadyIn = ids.every((id) => next.has(id));
+      if (allAlreadyIn) {
+        for (const id of ids) next.delete(id);
+      } else {
+        for (const id of ids) next.add(id);
+      }
+      return next;
+    });
   };
 
   const title = format(parseISO(date), 'd MMMM yyyy', { locale: fr });
@@ -225,7 +256,32 @@ export default function DayScreen() {
           keyExtractor={(item) => item.key}
           renderItem={({ item }) => {
             if (item.type === 'header') {
-              return <Text style={styles.sectionHeader}>{item.title}</Text>;
+              const allSelected =
+                selectMode &&
+                item.sectionTaskIds.length > 0 &&
+                item.sectionTaskIds.every((id) => selectedIds.has(id));
+              return (
+                <View
+                  style={[
+                    styles.sectionHeaderRow,
+                    !item.isFirst && styles.sectionDivider,
+                  ]}
+                >
+                  <Text style={styles.sectionHeader}>{item.title}</Text>
+                  {selectMode ? (
+                    <TouchableOpacity
+                      onPress={() =>
+                        selectAllInSection(item.sectionTaskIds)
+                      }
+                      hitSlop={8}
+                    >
+                      <Text style={styles.selectAllBtn}>
+                        {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              );
             }
             return (
               <TaskItem
@@ -339,16 +395,33 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     paddingVertical: 4,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+  },
+  sectionDivider: {
+    marginTop: theme.spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  },
   sectionHeader: {
     fontSize: theme.font.xs,
     color: theme.colors.textSubtle,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
-    backgroundColor: theme.colors.background,
+  },
+  selectAllBtn: {
+    fontSize: theme.font.sm,
+    color: '#6940a5',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   empty: {
     paddingTop: theme.spacing.xl * 2,
