@@ -39,3 +39,11 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+
+# Expo
+.expo/
+.expo-shared/
+
+# Claude Code notes
+ETAPES_FAITES/

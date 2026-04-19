@@ -10,3 +10,43 @@ eas build:configure
 
 # 4. Build Android
 eas build --profile development --platform android
+
+
+
+
+launch : 
+
+etre sur le meme réseau / partage de co
+
+
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+node --version
+
+pkill -f "expo start" 2>/dev/null
+pkill -f ngrok 2>/dev/null
+
+
+
+
+
+
+
+
+
+
+
+npx expo start --dev-client
+
+
+
+eas build --profile development --platform android 
+
+
+
+
+Idées : 
+
+- calendrier jours pas jours
+- onglet tache du jours (et keep track de chqaue tache du jours done ce jours là si on y retourne)
