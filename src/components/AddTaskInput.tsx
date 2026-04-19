@@ -1,19 +1,19 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
+
+const EXPANDED_HEIGHT = 260;
 
 type SubmitParams = {
   title: string;
@@ -30,17 +30,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<string | null>(null);
-  const [kbHeight, setKbHeight] = useState(0);
   const titleRef = useRef<TextInput>(null);
   const descRef = useRef<TextInput>(null);
-
-  const winH = useWindowDimensions().height;
-  // On Android with adjustResize, winH already excludes the keyboard.
-  // On iOS we have to subtract it manually.
-  const expandedHeight = useMemo(() => {
-    const visible = Platform.OS === 'android' ? winH : winH - kbHeight;
-    return Math.max(220, Math.min(340, Math.round(visible * 0.5)));
-  }, [winH, kbHeight]);
 
   useEffect(() => {
     if (open) {
@@ -49,19 +40,13 @@ export default function AddTaskInput({ onSubmit }: Props) {
     }
   }, [open]);
 
-  // Track keyboard so we can shrink the form when it appears
+  // Auto-close on keyboard hide (OS back, tap-outside).
+  // Color taps are protected by keyboardShouldPersistTaps='always'.
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) =>
-      setKbHeight(e.endCoordinates.height)
-    );
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKbHeight(0);
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
       setOpen(false);
     });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
+    return () => sub.remove();
   }, []);
 
   const canSubmit = title.trim().length > 0;
@@ -87,7 +72,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
   };
 
   const cancel = () => {
-    // Keep draft (title, desc, color) — user can re-open and find it.
     close();
   };
 
@@ -112,7 +96,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
   }
 
   return (
-    <View style={[styles.expanded, { height: expandedHeight }]}>
+    <View style={styles.expanded}>
       <View style={styles.titleRow}>
         <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
           <Feather name="x" size={22} color={theme.colors.textMuted} />
@@ -169,7 +153,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
             );
           })}
         </View>
-
         <Text style={[styles.label, styles.labelDesc]}>Description</Text>
         <Pressable onPress={() => descRef.current?.focus()}>
           <TextInput
@@ -213,6 +196,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   expanded: {
+    height: EXPANDED_HEIGHT,
     backgroundColor: theme.colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
@@ -294,7 +278,7 @@ const styles = StyleSheet.create({
   descInput: {
     fontSize: theme.font.md,
     color: theme.colors.text,
-    minHeight: 100,
+    minHeight: 80,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.background,
