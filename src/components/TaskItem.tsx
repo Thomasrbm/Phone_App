@@ -239,13 +239,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionDelete: {
-    backgroundColor: '#b91c1c',
-    borderLeftWidth: 2,
-    borderLeftColor: theme.colors.textInverse,
+    backgroundColor: '#e03e3e',
   },
   actionRestore: {
-    backgroundColor: '#a16207',
-    borderLeftWidth: 2,
-    borderLeftColor: theme.colors.textInverse,
+    backgroundColor: '#dfab01',
   },
 });

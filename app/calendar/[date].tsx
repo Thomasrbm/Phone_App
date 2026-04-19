@@ -10,9 +10,7 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  FlatList,
   KeyboardAvoidingView,
-  LayoutAnimation,
   Platform,
   StyleSheet,
   Text,
@@ -20,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AddTaskInput from '@/components/AddTaskInput';
 import TaskItem from '@/components/TaskItem';
@@ -55,34 +54,14 @@ export default function DayScreen() {
 
   const selectMode = selectedIds.size > 0;
 
-  const reload = useCallback(
-    async (animate = false) => {
-      const [active, removed] = await Promise.all([
-        listTasksByDay(date),
-        listDeletedTasksByDay(date),
-      ]);
-      if (animate) {
-        LayoutAnimation.configureNext({
-          duration: 350,
-          create: {
-            type: LayoutAnimation.Types.easeInEaseOut,
-            property: LayoutAnimation.Properties.opacity,
-          },
-          update: {
-            type: LayoutAnimation.Types.spring,
-            springDamping: 0.7,
-          },
-          delete: {
-            type: LayoutAnimation.Types.easeInEaseOut,
-            property: LayoutAnimation.Properties.opacity,
-          },
-        });
-      }
-      setTasks(active);
-      setDeletedCount(removed.length);
-    },
-    [date]
-  );
+  const reload = useCallback(async () => {
+    const [active, removed] = await Promise.all([
+      listTasksByDay(date),
+      listDeletedTasksByDay(date),
+    ]);
+    setTasks(active);
+    setDeletedCount(removed.length);
+  }, [date]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,12 +114,12 @@ export default function DayScreen() {
     color: string | null;
   }) => {
     await createTask({ day: date, ...params });
-    reload(true);
+    reload();
   };
 
   const handleToggle = async (id: string, done: boolean) => {
     await toggleTaskDone(id, done);
-    reload(true);
+    reload();
   };
 
   const handleTaskPress = (id: string) => {
@@ -165,7 +144,7 @@ export default function DayScreen() {
 
   const handleSwipeDelete = async (id: string) => {
     await softDeleteTask(id);
-    reload(true);
+    reload();
   };
 
   const deleteSelected = async () => {
@@ -174,7 +153,7 @@ export default function DayScreen() {
       await softDeleteTask(id);
     }
     setSelectedIds(new Set());
-    reload(true);
+    reload();
   };
 
   const selectAllInSection = (ids: string[]) => {
@@ -266,10 +245,11 @@ export default function DayScreen() {
             />
           </View>
         ) : null}
-        <FlatList
+        <Animated.FlatList
           style={styles.flex}
           data={items}
           keyExtractor={(item) => item.key}
+          itemLayoutAnimation={LinearTransition.duration(300)}
           renderItem={({ item }) => {
             if (item.type === 'header') {
               const allSelected =
@@ -328,6 +308,7 @@ export default function DayScreen() {
           }
           keyboardShouldPersistTaps="handled"
         />
+        {/* Animated.FlatList needs the closing tag. */}
         {selectMode ? (
           <TouchableOpacity
             onPress={deleteSelected}
