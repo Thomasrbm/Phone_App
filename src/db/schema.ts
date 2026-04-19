@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   day          TEXT NOT NULL,
   title        TEXT NOT NULL,
   description  TEXT,
+  color        TEXT,
   done         INTEGER NOT NULL DEFAULT 0,
   done_at      TEXT,
   created_at   TEXT NOT NULL,
@@ -14,3 +15,5 @@ CREATE TABLE IF NOT EXISTS tasks (
 export const CREATE_TASKS_DAY_INDEX = `
 CREATE INDEX IF NOT EXISTS idx_tasks_day ON tasks(day);
 `;
+
+export const ADD_TASKS_COLOR = `ALTER TABLE tasks ADD COLUMN color TEXT;`;

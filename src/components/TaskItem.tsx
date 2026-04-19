@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { format, parseISO } from 'date-fns';
 import {
   Alert,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -13,27 +12,11 @@ import type { Task } from '@/db/tasks';
 type Props = {
   task: Task;
   onToggle: (id: string, done: boolean) => void;
-  onEdit: (id: string, title: string) => void;
+  onPress: (id: string) => void;
   onDelete: (id: string) => void;
 };
 
-export default function TaskItem({ task, onToggle, onEdit, onDelete }: Props) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(task.title);
-
-  const startEdit = () => {
-    setDraft(task.title);
-    setEditing(true);
-  };
-
-  const commitEdit = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== task.title) {
-      onEdit(task.id, trimmed);
-    }
-    setEditing(false);
-  };
-
+export default function TaskItem({ task, onToggle, onPress, onDelete }: Props) {
   const confirmDelete = () => {
     Alert.alert('Supprimer la tâche', task.title, [
       { text: 'Annuler', style: 'cancel' },
@@ -45,8 +28,19 @@ export default function TaskItem({ task, onToggle, onEdit, onDelete }: Props) {
     ]);
   };
 
+  const subtitle = task.done && task.doneAt
+    ? `Fait à ${format(parseISO(task.doneAt), 'HH:mm')}`
+    : task.description;
+
   return (
     <View style={styles.row}>
+      <View
+        style={[
+          styles.colorBar,
+          { backgroundColor: task.color ?? 'transparent' },
+        ]}
+      />
+
       <TouchableOpacity
         onPress={() => onToggle(task.id, !task.done)}
         style={styles.checkbox}
@@ -57,23 +51,23 @@ export default function TaskItem({ task, onToggle, onEdit, onDelete }: Props) {
         </View>
       </TouchableOpacity>
 
-      {editing ? (
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          onBlur={commitEdit}
-          onSubmitEditing={commitEdit}
-          autoFocus
-          style={styles.input}
-          returnKeyType="done"
-        />
-      ) : (
-        <TouchableOpacity onPress={startEdit} style={styles.titleWrap}>
-          <Text style={[styles.title, task.done && styles.titleDone]}>
-            {task.title}
+      <TouchableOpacity
+        onPress={() => onPress(task.id)}
+        style={styles.titleWrap}
+        activeOpacity={0.6}
+      >
+        <Text
+          style={[styles.title, task.done && styles.titleDone]}
+          numberOfLines={2}
+        >
+          {task.title}
+        </Text>
+        {subtitle ? (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {subtitle}
           </Text>
-        </TouchableOpacity>
-      )}
+        ) : null}
+      </TouchableOpacity>
 
       <TouchableOpacity
         onPress={confirmDelete}
@@ -91,10 +85,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
+    paddingRight: theme.spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
+  },
+  colorBar: {
+    width: 4,
+    alignSelf: 'stretch',
+    marginRight: theme.spacing.md,
   },
   checkbox: {
     marginRight: theme.spacing.md,
@@ -128,11 +127,10 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     textDecorationLine: 'line-through',
   },
-  input: {
-    flex: 1,
-    fontSize: theme.font.lg,
-    color: theme.colors.text,
-    paddingVertical: 0,
+  subtitle: {
+    fontSize: theme.font.sm,
+    color: theme.colors.textMuted,
+    marginTop: 2,
   },
   deleteBtn: {
     marginLeft: theme.spacing.md,

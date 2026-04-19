@@ -1,5 +1,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { CREATE_TASKS_TABLE, CREATE_TASKS_DAY_INDEX } from './schema';
+import {
+  ADD_TASKS_COLOR,
+  CREATE_TASKS_DAY_INDEX,
+  CREATE_TASKS_TABLE,
+} from './schema';
 
 type Migration = (db: SQLiteDatabase) => Promise<void>;
 
@@ -7,6 +11,14 @@ const migrations: Migration[] = [
   async (db) => {
     await db.execAsync(CREATE_TASKS_TABLE);
     await db.execAsync(CREATE_TASKS_DAY_INDEX);
+  },
+  async (db) => {
+    const cols = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(tasks);`
+    );
+    if (!cols.some((c) => c.name === 'color')) {
+      await db.execAsync(ADD_TASKS_COLOR);
+    }
   },
 ];
 

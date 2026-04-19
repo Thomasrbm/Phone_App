@@ -6,6 +6,7 @@ export type Task = {
   day: string;
   title: string;
   description: string | null;
+  color: string | null;
   done: boolean;
   doneAt: string | null;
   createdAt: string;
@@ -17,6 +18,7 @@ type TaskRow = {
   day: string;
   title: string;
   description: string | null;
+  color: string | null;
   done: number;
   done_at: string | null;
   created_at: string;
@@ -29,6 +31,7 @@ function rowToTask(row: TaskRow): Task {
     day: row.day,
     title: row.title,
     description: row.description,
+    color: row.color,
     done: row.done === 1,
     doneAt: row.done_at,
     createdAt: row.created_at,
@@ -64,21 +67,33 @@ export async function listTasksByDay(day: string): Promise<Task[]> {
   return rows.map(rowToTask);
 }
 
+export async function getTaskById(id: string): Promise<Task | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<TaskRow>(
+    'SELECT * FROM tasks WHERE id = ?',
+    id
+  );
+  return row ? rowToTask(row) : null;
+}
+
 export async function createTask(params: {
   day: string;
   title: string;
   description?: string | null;
+  color?: string | null;
 }): Promise<Task> {
   const db = await getDatabase();
   const now = new Date().toISOString();
   const id = uuidv4();
   const description = params.description ?? null;
+  const color = params.color ?? null;
   await db.runAsync(
-    'INSERT INTO tasks (id, day, title, description, done, done_at, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?, ?)',
+    'INSERT INTO tasks (id, day, title, description, color, done, done_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)',
     id,
     params.day,
     params.title,
     description,
+    color,
     now,
     now
   );
@@ -87,6 +102,7 @@ export async function createTask(params: {
     day: params.day,
     title: params.title,
     description,
+    color,
     done: false,
     doneAt: null,
     createdAt: now,
@@ -96,7 +112,11 @@ export async function createTask(params: {
 
 export async function updateTask(
   id: string,
-  fields: { title?: string; description?: string | null }
+  fields: {
+    title?: string;
+    description?: string | null;
+    color?: string | null;
+  }
 ): Promise<void> {
   const sets: string[] = [];
   const vals: (string | null)[] = [];
@@ -107,6 +127,10 @@ export async function updateTask(
   if (fields.description !== undefined) {
     sets.push('description = ?');
     vals.push(fields.description);
+  }
+  if (fields.color !== undefined) {
+    sets.push('color = ?');
+    vals.push(fields.color);
   }
   if (sets.length === 0) return;
   const db = await getDatabase();

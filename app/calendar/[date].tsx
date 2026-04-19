@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -18,13 +18,13 @@ import {
   deleteTask,
   listTasksByDay,
   toggleTaskDone,
-  updateTask,
   type Task,
 } from '@/db/tasks';
 import { theme } from '@/lib/theme';
 
 export default function DayScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const headerHeight = useHeaderHeight();
 
@@ -49,9 +49,8 @@ export default function DayScreen() {
     reload();
   };
 
-  const handleEdit = async (id: string, title: string) => {
-    await updateTask(id, { title });
-    reload();
+  const handlePress = (id: string) => {
+    router.push(`/task/${id}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -82,7 +81,7 @@ export default function DayScreen() {
             <TaskItem
               task={item}
               onToggle={handleToggle}
-              onEdit={handleEdit}
+              onPress={handlePress}
               onDelete={handleDelete}
             />
           )}
