@@ -1,0 +1,12 @@
+npm run setup
+
+npm install -g eas-cli
+
+eas login --sso
+
+
+cd ~/Bureau/Code/Phone_App
+eas build:configure
+
+# 4. Build Android
+eas build --profile development --platform android
