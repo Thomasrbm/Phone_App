@@ -242,6 +242,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e03e3e',
   },
   actionRestore: {
-    backgroundColor: '#dfab01',
+    backgroundColor: '#f59e0b',
   },
 });
