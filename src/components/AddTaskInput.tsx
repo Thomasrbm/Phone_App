@@ -2,9 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,10 +33,17 @@ export default function AddTaskInput({ onSubmit }: Props) {
 
   useEffect(() => {
     if (open) {
-      const t = setTimeout(() => titleRef.current?.focus(), 100);
+      const t = setTimeout(() => titleRef.current?.focus(), 60);
       return () => clearTimeout(t);
     }
   }, [open]);
+
+  // Auto-close when the keyboard hides (OS back, tap-outside, etc.).
+  // Color taps are protected by keyboardShouldPersistTaps + re-focus.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => setOpen(false));
+    return () => sub.remove();
+  }, []);
 
   const canSubmit = title.trim().length > 0;
 
@@ -64,7 +68,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
   };
 
   const cancel = () => {
-    // Keep draft (title, desc, color) — only close
+    // Keep draft (title, desc, color)
     close();
   };
 
@@ -73,8 +77,12 @@ export default function AddTaskInput({ onSubmit }: Props) {
     titleRef.current?.focus();
   };
 
+  // Always render the tiny collapsed bar in the layout flow.
+  // The expanded form is overlaid above it absolutely so the inline
+  // bar's height never changes (the bottom padding of the parent KAV
+  // remains tied to the small bar's height).
   return (
-    <>
+    <View>
       <TouchableOpacity
         style={styles.collapsed}
         onPress={() => setOpen(true)}
@@ -86,100 +94,76 @@ export default function AddTaskInput({ onSubmit }: Props) {
         </View>
       </TouchableOpacity>
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={cancel}
-        statusBarTranslucent
-      >
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.backdrop} onPress={cancel} />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.kavWrap}
-            pointerEvents="box-none"
+      {open ? (
+        <View
+          style={styles.expandedOverlay}
+          pointerEvents="auto"
+        >
+          <View style={styles.titleRow}>
+            <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
+              <Feather name="x" size={22} color={theme.colors.textMuted} />
+            </TouchableOpacity>
+            <TextInput
+              ref={titleRef}
+              value={title}
+              onChangeText={setTitle}
+              onSubmitEditing={() => descRef.current?.focus()}
+              placeholder="Titre de la tâche"
+              placeholderTextColor={theme.colors.textSubtle}
+              style={styles.titleInput}
+              returnKeyType="next"
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              onPress={submit}
+              style={[styles.btnPrimary, !canSubmit && styles.btnDisabled]}
+              disabled={!canSubmit}
+            >
+              <Feather name="plus" size={20} color={theme.colors.textInverse} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.colorRow}
+            keyboardShouldPersistTaps="always"
           >
-            <View style={styles.sheet}>
-              <View style={styles.titleRow}>
+            {TASK_COLORS.map((c) => {
+              const selected = c.value === color;
+              return (
                 <TouchableOpacity
-                  onPress={cancel}
-                  style={styles.iconBtn}
-                  hitSlop={8}
-                >
-                  <Feather
-                    name="x"
-                    size={22}
-                    color={theme.colors.textMuted}
-                  />
-                </TouchableOpacity>
-                <TextInput
-                  ref={titleRef}
-                  value={title}
-                  onChangeText={setTitle}
-                  onSubmitEditing={() => descRef.current?.focus()}
-                  placeholder="Titre de la tâche"
-                  placeholderTextColor={theme.colors.textSubtle}
-                  style={styles.titleInput}
-                  returnKeyType="next"
-                  blurOnSubmit={false}
+                  key={c.id}
+                  onPress={() => pickColor(c.value)}
+                  style={[
+                    styles.colorDot,
+                    { backgroundColor: c.value ?? theme.colors.surfaceAlt },
+                    selected && styles.colorDotSelected,
+                    !c.value && styles.colorDotNone,
+                  ]}
                 />
-                <TouchableOpacity
-                  onPress={submit}
-                  style={[styles.btnPrimary, !canSubmit && styles.btnDisabled]}
-                  disabled={!canSubmit}
-                >
-                  <Feather
-                    name="plus"
-                    size={20}
-                    color={theme.colors.textInverse}
-                  />
-                </TouchableOpacity>
-              </View>
+              );
+            })}
+          </ScrollView>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.colorRow}
-                keyboardShouldPersistTaps="always"
-              >
-                {TASK_COLORS.map((c) => {
-                  const selected = c.value === color;
-                  return (
-                    <TouchableOpacity
-                      key={c.id}
-                      onPress={() => pickColor(c.value)}
-                      style={[
-                        styles.colorDot,
-                        { backgroundColor: c.value ?? theme.colors.surfaceAlt },
-                        selected && styles.colorDotSelected,
-                        !c.value && styles.colorDotNone,
-                      ]}
-                    />
-                  );
-                })}
-              </ScrollView>
-
-              <Pressable
-                onPress={() => descRef.current?.focus()}
-                style={styles.descWrap}
-              >
-                <TextInput
-                  ref={descRef}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Description (optionnel)"
-                  placeholderTextColor={theme.colors.textSubtle}
-                  style={styles.descInput}
-                  multiline
-                  textAlignVertical="top"
-                />
-              </Pressable>
-            </View>
-          </KeyboardAvoidingView>
+          <Pressable
+            onPress={() => descRef.current?.focus()}
+            style={styles.descWrap}
+          >
+            <TextInput
+              ref={descRef}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Description (optionnel)"
+              placeholderTextColor={theme.colors.textSubtle}
+              style={styles.descInput}
+              multiline
+              textAlignVertical="top"
+            />
+          </Pressable>
         </View>
-      </Modal>
-    </>
+      ) : null}
+    </View>
   );
 }
 
@@ -207,29 +191,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalRoot: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  kavWrap: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  sheet: {
+  expandedOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   iconBtn: {
     width: 36,
@@ -279,8 +261,8 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.text,
   },
   descWrap: {
-    marginTop: theme.spacing.sm,
-    minHeight: 100,
+    marginTop: theme.spacing.xs,
+    minHeight: 80,
     backgroundColor: theme.colors.background,
     borderRadius: theme.radius.md,
     padding: theme.spacing.md,
@@ -288,6 +270,6 @@ const styles = StyleSheet.create({
   descInput: {
     fontSize: theme.font.md,
     color: theme.colors.text,
-    minHeight: 76,
+    minHeight: 56,
   },
 });
