@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   Pressable,
@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -19,7 +20,6 @@ import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 
 const BASE_HEIGHT = 380;
-const MAX_HEIGHT = 600;
 const MIN_HEIGHT = 220;
 
 type SubmitParams = {
@@ -40,8 +40,18 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const titleRef = useRef<TextInput>(null);
   const descRef = useRef<TextInput>(null);
 
+  const winH = useWindowDimensions().height;
+  // Fullscreen-ish max — leaves a tiny bit of room for the system status
+  // bar / header area so the user can still see they're in the app.
+  const maxHeight = useMemo(() => Math.round(winH * 0.92), [winH]);
+
   const height = useSharedValue(BASE_HEIGHT);
   const startHeight = useSharedValue(BASE_HEIGHT);
+  const maxHeightSV = useSharedValue(maxHeight);
+
+  useEffect(() => {
+    maxHeightSV.value = maxHeight;
+  }, [maxHeight, maxHeightSV]);
 
   useEffect(() => {
     if (open) {
@@ -88,8 +98,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
   };
 
   const dragGesture = Gesture.Pan()
-    // Activate on a small vertical motion so Pan wins over inner views
-    // before they grab the touch. Pure tap (no motion) goes through.
     .activeOffsetY([-5, 5])
     .failOffsetX([-30, 30])
     .shouldCancelWhenOutside(false)
@@ -98,11 +106,11 @@ export default function AddTaskInput({ onSubmit }: Props) {
     })
     .onUpdate((e) => {
       const next = startHeight.value - e.translationY;
-      height.value = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, next));
+      height.value = Math.max(MIN_HEIGHT, Math.min(maxHeightSV.value, next));
     })
     .onEnd(() => {
-      const midpoint = (BASE_HEIGHT + MAX_HEIGHT) / 2;
-      const target = height.value > midpoint ? MAX_HEIGHT : BASE_HEIGHT;
+      const mid = (BASE_HEIGHT + maxHeightSV.value) / 2;
+      const target = height.value > mid ? maxHeightSV.value : BASE_HEIGHT;
       height.value = withSpring(target, { damping: 20, stiffness: 180 });
     });
 
@@ -130,8 +138,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
       <Animated.View style={[styles.expanded, animatedStyle]}>
         <TouchableOpacity
           onPress={() => {
-            const mid = (BASE_HEIGHT + MAX_HEIGHT) / 2;
-            const target = height.value < mid ? MAX_HEIGHT : BASE_HEIGHT;
+            const mid = (BASE_HEIGHT + maxHeight) / 2;
+            const target = height.value < mid ? maxHeight : BASE_HEIGHT;
             height.value = withSpring(target, { damping: 20, stiffness: 180 });
           }}
           activeOpacity={0.6}
