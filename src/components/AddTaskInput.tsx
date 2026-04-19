@@ -13,7 +13,7 @@ import {
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 
-const EXPANDED_HEIGHT = 260;
+const EXPANDED_HEIGHT = 220;
 
 type SubmitParams = {
   title: string;

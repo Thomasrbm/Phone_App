@@ -13,6 +13,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   LayoutAnimation,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -229,8 +230,8 @@ export default function DayScreen() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
         {searchOpen && !selectMode ? (
           <View style={styles.searchBar}>
