@@ -16,8 +16,18 @@ export const TASK_COLORS: TaskColor[] = [
 ];
 
 // Returns a soft tinted background derived from the task color.
-// Uses RN's 8-char hex (RGBA) for ~22% alpha over the parent surface.
+// Blends the color with white at ~22% ratio to produce an OPAQUE pastel.
+// Alpha-based transparency would let content behind (e.g. the swipe
+// action) show through, breaking the swipe reveal animation.
 export function softColorBg(value: string | null): string | undefined {
   if (!value) return undefined;
-  return value + '38'; // 0x38 = 56 / 255 ≈ 22%
+  const r = parseInt(value.slice(1, 3), 16);
+  const g = parseInt(value.slice(3, 5), 16);
+  const b = parseInt(value.slice(5, 7), 16);
+  const ratio = 0.22;
+  const blend = (c: number) =>
+    Math.round(c * ratio + 255 * (1 - ratio))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${blend(r)}${blend(g)}${blend(b)}`;
 }
