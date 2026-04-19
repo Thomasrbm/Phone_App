@@ -4,7 +4,9 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   StyleSheet,
   Text,
   TextInput,
@@ -62,6 +64,19 @@ export default function TaskEditScreen() {
     if (color === task.color) return;
     updateTask(id, { color });
   }, [color, task, id]);
+
+  // Animate layout on keyboard show/hide for smooth transitions
+  useEffect(() => {
+    const smooth = () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    };
+    const showSub = Keyboard.addListener('keyboardDidShow', smooth);
+    const hideSub = Keyboard.addListener('keyboardDidHide', smooth);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const saveTitle = () => {
     if (!task) return;
@@ -255,15 +270,22 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
+    flexShrink: 1,
+    overflow: 'hidden',
   },
   section: {
+    flexShrink: 0,
     marginBottom: theme.spacing.xl,
   },
   descSection: {
     flex: 1,
+    flexShrink: 1,
+    overflow: 'hidden',
     marginBottom: theme.spacing.lg,
   },
   footer: {
+    flexGrow: 0,
+    flexShrink: 0,
     paddingTop: theme.spacing.md,
   },
   label: {
@@ -284,6 +306,7 @@ const styles = StyleSheet.create({
   },
   descInput: {
     flex: 1,
+    flexShrink: 1,
     fontSize: theme.font.lg,
     color: theme.colors.text,
     paddingVertical: theme.spacing.sm,
