@@ -10,10 +10,17 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
@@ -83,19 +90,50 @@ export default function TaskEditScreen() {
 
   const backOnSwipe = () => router.back();
 
+  const { width: winW, height: winH } = useWindowDimensions();
+  const tX = useSharedValue(0);
+  const tY = useSharedValue(0);
+
   const swipeBackGesture = Gesture.Pan()
-    .minDistance(40)
+    .minDistance(20)
+    .onUpdate((e) => {
+      tX.value = e.translationX;
+      tY.value = e.translationY;
+    })
     .onEnd((e) => {
-      if (
-        Math.abs(e.translationX) > 100 ||
-        Math.abs(e.translationY) > 150
-      ) {
-        runOnJS(backOnSwipe)();
+      const H_THRESH = 100;
+      const V_THRESH = 150;
+      if (Math.abs(e.translationX) > H_THRESH) {
+        const dir = e.translationX > 0 ? 1 : -1;
+        tX.value = withTiming(
+          dir * winW,
+          { duration: 220 },
+          (finished) => {
+            if (finished) runOnJS(backOnSwipe)();
+          }
+        );
+      } else if (Math.abs(e.translationY) > V_THRESH) {
+        const dir = e.translationY > 0 ? 1 : -1;
+        tY.value = withTiming(
+          dir * winH,
+          { duration: 220 },
+          (finished) => {
+            if (finished) runOnJS(backOnSwipe)();
+          }
+        );
+      } else {
+        tX.value = withSpring(0, { damping: 20, stiffness: 200 });
+        tY.value = withSpring(0, { damping: 20, stiffness: 200 });
       }
     });
 
+  const screenAnim = useAnimatedStyle(() => ({
+    transform: [{ translateX: tX.value }, { translateY: tY.value }],
+  }));
+
   return (
     <GestureDetector gesture={swipeBackGesture}>
+    <Animated.View style={[styles.container, screenAnim]}>
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
@@ -194,6 +232,7 @@ export default function TaskEditScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </Animated.View>
     </GestureDetector>
   );
 }
