@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
@@ -48,6 +50,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const startHeight = useSharedValue(BASE_HEIGHT);
   const maxHeightSV = useSharedValue(maxHeight);
   const midHeightSV = useSharedValue(MID_HEIGHT);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
 
   useEffect(() => {
     maxHeightSV.value = maxHeight;
@@ -56,10 +60,12 @@ export default function AddTaskInput({ onSubmit }: Props) {
   useEffect(() => {
     if (open) {
       height.value = BASE_HEIGHT;
+      translateX.value = 0;
+      translateY.value = 0;
       const t = setTimeout(() => titleRef.current?.focus(), 80);
       return () => clearTimeout(t);
     }
-  }, [open, height]);
+  }, [open, height, translateX, translateY]);
 
   useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidHide', () => {
@@ -113,8 +119,19 @@ export default function AddTaskInput({ onSubmit }: Props) {
       const next = startHeight.value - e.translationY;
       height.value = Math.max(MIN_HEIGHT, Math.min(maxHeightSV.value, next));
     })
-    .onEnd(() => {
-      // Snap to nearest of BASE / MID / MAX
+    .onEnd((e) => {
+      // Strong downward swipe from BASE → slide form off the bottom + close
+      if (e.translationY > 150 && startHeight.value <= BASE_HEIGHT + 50) {
+        translateY.value = withTiming(
+          height.value,
+          { duration: 200 },
+          (finished) => {
+            if (finished) runOnJS(close)();
+          }
+        );
+        return;
+      }
+      // Otherwise snap to nearest of BASE / MID / MAX
       const targets = [BASE_HEIGHT, midHeightSV.value, maxHeightSV.value];
       let best = targets[0];
       let bestDist = Math.abs(targets[0] - height.value);
@@ -128,19 +145,27 @@ export default function AddTaskInput({ onSubmit }: Props) {
       height.value = withSpring(best, { damping: 20, stiffness: 180 });
     });
 
-  // Horizontal swipe to exit fullscreen (collapse to BASE)
+  // Horizontal swipe: at BASE → slide off-screen + close.
+  // Above BASE → collapse to BASE.
   const horizontalSwipe = Gesture.Pan()
     .activeOffsetX([-30, 30])
     .failOffsetY([-15, 15])
     .onEnd((e) => {
-      if (
-        Math.abs(e.translationX) > HORIZONTAL_EXIT_THRESHOLD &&
-        height.value > BASE_HEIGHT + 40
-      ) {
+      if (Math.abs(e.translationX) <= HORIZONTAL_EXIT_THRESHOLD) return;
+      if (height.value > BASE_HEIGHT + 40) {
         height.value = withSpring(BASE_HEIGHT, {
           damping: 20,
           stiffness: 180,
         });
+      } else {
+        const dir = e.translationX > 0 ? 1 : -1;
+        translateX.value = withTiming(
+          dir * 500,
+          { duration: 200 },
+          (finished) => {
+            if (finished) runOnJS(close)();
+          }
+        );
       }
     });
 
@@ -148,6 +173,10 @@ export default function AddTaskInput({ onSubmit }: Props) {
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: height.value,
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
   }));
 
   if (!open) {
