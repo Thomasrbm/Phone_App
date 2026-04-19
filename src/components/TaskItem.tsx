@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { softColorBg } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 import type { Task } from '@/db/tasks';
 
@@ -33,21 +34,31 @@ export default function TaskItem({ task, onToggle, onPress, onDelete }: Props) {
       ? `Fait à ${format(parseISO(task.doneAt), 'HH:mm')}`
       : task.description;
 
-  return (
-    <View style={[styles.row, task.done && styles.rowDone]}>
-      <View
-        style={[
-          styles.colorBar,
-          { backgroundColor: task.color ?? 'transparent' },
-        ]}
-      />
+  const tickColor = task.color ?? theme.colors.done;
+  const rowBg = softColorBg(task.color);
 
+  return (
+    <View
+      style={[
+        styles.row,
+        rowBg !== undefined && { backgroundColor: rowBg },
+        task.done && styles.rowDone,
+      ]}
+    >
       <TouchableOpacity
         onPress={() => onToggle(task.id, !task.done)}
         style={styles.checkbox}
         hitSlop={8}
       >
-        <View style={[styles.box, task.done && styles.boxDone]}>
+        <View
+          style={[
+            styles.box,
+            task.done && {
+              backgroundColor: tickColor,
+              borderColor: tickColor,
+            },
+          ]}
+        >
           {task.done ? <Text style={styles.check}>✓</Text> : null}
         </View>
       </TouchableOpacity>
@@ -86,19 +97,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: theme.spacing.md,
-    paddingRight: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
   },
   rowDone: {
     opacity: 0.55,
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-  colorBar: {
-    width: 10,
-    alignSelf: 'stretch',
-    marginRight: theme.spacing.md,
   },
   checkbox: {
     marginRight: theme.spacing.md,
@@ -111,10 +116,6 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.textMuted,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  boxDone: {
-    backgroundColor: theme.colors.done,
-    borderColor: theme.colors.done,
   },
   check: {
     color: theme.colors.textInverse,

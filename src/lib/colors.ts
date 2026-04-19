@@ -14,3 +14,10 @@ export const TASK_COLORS: TaskColor[] = [
   { id: 'purple', value: '#6940a5', label: 'Violet' },
   { id: 'pink', value: '#ad1a72', label: 'Rose' },
 ];
+
+// Returns a soft tinted background derived from the task color.
+// Uses RN's 8-char hex (RGBA) for ~22% alpha over the parent surface.
+export function softColorBg(value: string | null): string | undefined {
+  if (!value) return undefined;
+  return value + '38'; // 0x38 = 56 / 255 ≈ 22%
+}

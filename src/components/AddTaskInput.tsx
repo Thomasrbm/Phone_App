@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,9 +22,19 @@ type Props = {
 };
 
 export default function AddTaskInput({ onSubmit }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<string | null>(null);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (expanded) {
+      // Slight delay so the input is mounted before focus
+      const t = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [expanded]);
 
   const canSubmit = title.trim().length > 0;
 
@@ -37,16 +48,43 @@ export default function AddTaskInput({ onSubmit }: Props) {
     setTitle('');
     setDescription('');
     setColor(null);
+    Keyboard.dismiss();
+    setExpanded(false);
   };
 
+  const cancel = () => {
+    // Keep draft (title, description, color) — only collapse + dismiss kb.
+    Keyboard.dismiss();
+    setExpanded(false);
+  };
+
+  if (!expanded) {
+    return (
+      <TouchableOpacity
+        style={styles.collapsed}
+        onPress={() => setExpanded(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.collapsedText}>Ajouter une nouvelle tâche</Text>
+        <View style={styles.btn}>
+          <Text style={styles.btnText}>+</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
-    <View style={styles.container}>
+    <View style={styles.expanded}>
       <View style={styles.titleRow}>
+        <TouchableOpacity onPress={cancel} style={styles.cancelBtn} hitSlop={8}>
+          <Text style={styles.cancelText}>✕</Text>
+        </TouchableOpacity>
         <TextInput
+          ref={inputRef}
           value={title}
           onChangeText={setTitle}
           onSubmitEditing={submit}
-          placeholder="Nouvelle tâche…"
+          placeholder="Titre de la tâche"
           placeholderTextColor={theme.colors.textSubtle}
           style={styles.titleInput}
           returnKeyType="done"
@@ -93,7 +131,22 @@ export default function AddTaskInput({ onSubmit }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  collapsed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+  },
+  collapsedText: {
+    flex: 1,
+    fontSize: theme.font.md,
+    color: theme.colors.textMuted,
+  },
+  expanded: {
     backgroundColor: theme.colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
@@ -103,6 +156,18 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  cancelBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.xs,
+  },
+  cancelText: {
+    fontSize: theme.font.lg,
+    color: theme.colors.textMuted,
+    fontWeight: '500',
   },
   titleInput: {
     flex: 1,
@@ -134,6 +199,7 @@ const styles = StyleSheet.create({
   colorRow: {
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.xs,
+    paddingHorizontal: 36,
     gap: theme.spacing.sm,
   },
   colorDot: {
@@ -154,6 +220,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.md,
     color: theme.colors.text,
     paddingVertical: 4,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md + 32,
   },
 });
