@@ -110,8 +110,9 @@ export default function TaskEditScreen() {
   const tX = useSharedValue(0);
   const tY = useSharedValue(0);
 
-  const panGesture = Gesture.Pan()
-    .minDistance(12)
+  const swipeBackGesture = Gesture.Pan()
+    .minDistance(8)
+    .shouldCancelWhenOutside(false)
     .onUpdate((e) => {
       tX.value = e.translationX;
       tY.value = e.translationY;
@@ -142,10 +143,6 @@ export default function TaskEditScreen() {
         tY.value = withSpring(0, { damping: 20, stiffness: 200 });
       }
     });
-
-  // Run pan simultaneously with native gestures so the TextInput's
-  // touch handling (cursor placement) doesn't block the swipe.
-  const swipeBackGesture = Gesture.Simultaneous(panGesture, Gesture.Native());
 
   const screenAnim = useAnimatedStyle(() => ({
     transform: [{ translateX: tX.value }, { translateY: tY.value }],
