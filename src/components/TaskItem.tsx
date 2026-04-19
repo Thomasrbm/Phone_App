@@ -96,7 +96,13 @@ export default function TaskItem({
               },
             ]}
           >
-            {task.done ? <Text style={styles.check}>✓</Text> : null}
+            {task.done ? (
+              <Feather
+                name="check"
+                size={16}
+                color={theme.colors.textInverse}
+              />
+            ) : null}
           </View>
         </TouchableOpacity>
       )}
@@ -160,11 +166,6 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.textMuted,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  check: {
-    color: theme.colors.textInverse,
-    fontSize: 14,
-    fontWeight: '700',
   },
   titleWrap: {
     flex: 1,

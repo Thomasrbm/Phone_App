@@ -116,7 +116,7 @@ export default function DayScreen() {
     reload(true);
   };
 
-  const title = format(parseISO(date), 'EEEE d MMMM', { locale: fr });
+  const title = format(parseISO(date), 'd MMMM yyyy', { locale: fr });
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -234,28 +234,31 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.lg,
-    paddingRight: theme.spacing.sm,
+    gap: theme.spacing.md,
+    paddingRight: theme.spacing.md,
   },
   headerBtn: {
-    padding: theme.spacing.xs,
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: -2,
-    right: -4,
+    top: 2,
+    right: 0,
     backgroundColor: theme.colors.today,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
   badgeText: {
     color: theme.colors.textInverse,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
   },
   searchBar: {

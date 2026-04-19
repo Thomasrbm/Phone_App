@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -55,8 +56,8 @@ export default function SearchScreen() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
         <View style={styles.searchBar}>
           <TextInput

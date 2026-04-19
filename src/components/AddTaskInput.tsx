@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -30,19 +31,10 @@ export default function AddTaskInput({ onSubmit }: Props) {
 
   useEffect(() => {
     if (expanded) {
-      // Slight delay so the input is mounted before focus
       const t = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(t);
     }
   }, [expanded]);
-
-  // Auto-collapse whenever the keyboard hides (covers OS back, tap-outside, etc.)
-  useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidHide', () => {
-      setExpanded(false);
-    });
-    return () => sub.remove();
-  }, []);
 
   const canSubmit = title.trim().length > 0;
 
@@ -62,10 +54,15 @@ export default function AddTaskInput({ onSubmit }: Props) {
   };
 
   const cancel = () => {
-    // Keep draft (title, description, color) — only collapse + dismiss kb.
     inputRef.current?.blur();
     Keyboard.dismiss();
     setExpanded(false);
+  };
+
+  const pickColor = (c: string | null) => {
+    setColor(c);
+    // Re-focus input so the keyboard doesn't close on color tap
+    inputRef.current?.focus();
   };
 
   if (!expanded) {
@@ -76,8 +73,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
         activeOpacity={0.7}
       >
         <Text style={styles.collapsedText}>Ajouter une nouvelle tâche</Text>
-        <View style={styles.btn}>
-          <Text style={styles.btnText}>+</Text>
+        <View style={styles.btnSmall}>
+          <Feather name="plus" size={18} color={theme.colors.textInverse} />
         </View>
       </TouchableOpacity>
     );
@@ -86,8 +83,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
   return (
     <View style={styles.expanded}>
       <View style={styles.titleRow}>
-        <TouchableOpacity onPress={cancel} style={styles.cancelBtn} hitSlop={8}>
-          <Text style={styles.cancelText}>✕</Text>
+        <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
+          <Feather name="x" size={20} color={theme.colors.textMuted} />
         </TouchableOpacity>
         <TextInput
           ref={inputRef}
@@ -98,26 +95,28 @@ export default function AddTaskInput({ onSubmit }: Props) {
           placeholderTextColor={theme.colors.textSubtle}
           style={styles.titleInput}
           returnKeyType="done"
+          blurOnSubmit={false}
         />
         <TouchableOpacity
           onPress={submit}
-          style={[styles.btn, !canSubmit && styles.btnDisabled]}
+          style={[styles.btnSmall, !canSubmit && styles.btnDisabled]}
           disabled={!canSubmit}
         >
-          <Text style={styles.btnText}>+</Text>
+          <Feather name="plus" size={18} color={theme.colors.textInverse} />
         </TouchableOpacity>
       </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.colorRow}
+        keyboardShouldPersistTaps="always"
       >
         {TASK_COLORS.map((c) => {
           const selected = c.value === color;
           return (
             <TouchableOpacity
               key={c.id}
-              onPress={() => setColor(c.value)}
+              onPress={() => pickColor(c.value)}
               style={[
                 styles.colorDot,
                 { backgroundColor: c.value ?? theme.colors.surfaceAlt },
@@ -149,7 +148,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: 10,
   },
   collapsedText: {
     flex: 1,
@@ -160,39 +159,33 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  cancelBtn: {
+  iconBtn: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: theme.spacing.xs,
-  },
-  cancelText: {
-    fontSize: theme.font.lg,
-    color: theme.colors.textMuted,
-    fontWeight: '500',
   },
   titleInput: {
     flex: 1,
-    fontSize: theme.font.lg,
+    fontSize: theme.font.md,
     color: theme.colors.text,
-    paddingVertical: 6,
-    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 4,
+    paddingHorizontal: theme.spacing.sm,
     backgroundColor: theme.colors.background,
-    borderRadius: theme.radius.md,
-    marginRight: theme.spacing.sm,
+    borderRadius: theme.radius.sm,
+    marginHorizontal: 4,
   },
-  btn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  btnSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -200,22 +193,16 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.3,
   },
-  btnText: {
-    color: theme.colors.textInverse,
-    fontWeight: '700',
-    fontSize: 22,
-    lineHeight: 22,
-  },
   colorRow: {
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.xs,
+    paddingTop: 6,
+    paddingBottom: 4,
     paddingHorizontal: 36,
-    gap: theme.spacing.sm,
+    gap: 8,
   },
   colorDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
   colorDotNone: {
     borderWidth: 1,
@@ -227,9 +214,9 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.text,
   },
   descInput: {
-    fontSize: theme.font.md,
+    fontSize: theme.font.sm,
     color: theme.colors.text,
-    paddingVertical: 4,
-    paddingHorizontal: theme.spacing.md + 32,
+    paddingVertical: 2,
+    paddingHorizontal: theme.spacing.sm + 32,
   },
 });
