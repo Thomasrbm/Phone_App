@@ -2,7 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -199,21 +198,16 @@ export default function AddTaskInput({ onSubmit }: Props) {
           })}
         </View>
         <Text style={[styles.label, styles.labelDesc]}>Description</Text>
-        <Pressable
-          onPress={() => descRef.current?.focus()}
-          style={styles.descGrowWrap}
-        >
-          <TextInput
-            ref={descRef}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Notes, contexte, détails…"
-            placeholderTextColor={theme.colors.textSubtle}
-            style={styles.descInput}
-            multiline
-            textAlignVertical="top"
-          />
-        </Pressable>
+        <TextInput
+          ref={descRef}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Notes, contexte, détails…"
+          placeholderTextColor={theme.colors.textSubtle}
+          style={styles.descInput}
+          multiline
+          textAlignVertical="top"
+        />
       </View>
       </Animated.View>
     </GestureDetector>
@@ -250,15 +244,16 @@ const styles = StyleSheet.create({
     borderTopColor: theme.colors.border,
   },
   dragHandleArea: {
-    paddingVertical: 8,
+    paddingVertical: 16,
+    paddingHorizontal: theme.spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dragHandleBar: {
-    width: 44,
-    height: 5,
+    width: 60,
+    height: 6,
     borderRadius: 3,
-    backgroundColor: theme.colors.border,
+    backgroundColor: theme.colors.textSubtle,
   },
   titleRow: {
     flexDirection: 'row',
