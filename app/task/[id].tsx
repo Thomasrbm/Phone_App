@@ -132,7 +132,7 @@ export default function TaskEditScreen() {
 
   return (
     <GestureDetector gesture={swipeBackGesture}>
-    <Animated.View style={[styles.container, screenAnim]}>
+    <Animated.View style={[styles.animWrap, screenAnim]}>
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
@@ -141,6 +141,8 @@ export default function TaskEditScreen() {
           headerBackTitle: 'Retour',
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
+          presentation: 'transparentModal',
+          animation: 'fade',
         }}
       />
       <KeyboardAvoidingView
@@ -149,82 +151,85 @@ export default function TaskEditScreen() {
         keyboardVerticalOffset={headerHeight}
       >
         <View style={styles.content}>
-          <View style={styles.section}>
-            <Text style={styles.label}>Titre</Text>
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              onBlur={saveTitle}
-              style={styles.titleInput}
-              placeholder="Titre de la tâche"
-              placeholderTextColor={theme.colors.textSubtle}
-              returnKeyType="done"
-              disableFullscreenUI
-            />
-          </View>
+          <View style={styles.main}>
+            <View style={styles.section}>
+              <Text style={styles.label}>Titre</Text>
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                onBlur={saveTitle}
+                style={styles.titleInput}
+                placeholder="Titre de la tâche"
+                placeholderTextColor={theme.colors.textSubtle}
+                returnKeyType="done"
+                disableFullscreenUI
+              />
+            </View>
 
-          <View style={styles.section}>
-            <Text style={styles.label}>Couleur</Text>
-            <View style={styles.colorRow}>
-              {TASK_COLORS.map((c) => {
-                const selected = c.value === color;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setColor(c.value)}
-                    style={[
-                      styles.colorDot,
-                      {
-                        backgroundColor:
-                          c.value ?? theme.colors.surfaceAlt,
-                      },
-                      selected && styles.colorDotSelected,
-                      !c.value && styles.colorDotNone,
-                    ]}
-                  >
-                    {selected ? (
-                      <Text
-                        style={[
-                          styles.colorCheck,
-                          !c.value && styles.colorCheckNone,
-                        ]}
-                      >
-                        ✓
-                      </Text>
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.section}>
+              <Text style={styles.label}>Couleur</Text>
+              <View style={styles.colorRow}>
+                {TASK_COLORS.map((c) => {
+                  const selected = c.value === color;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      onPress={() => setColor(c.value)}
+                      style={[
+                        styles.colorDot,
+                        {
+                          backgroundColor:
+                            c.value ?? theme.colors.surfaceAlt,
+                        },
+                        selected && styles.colorDotSelected,
+                        !c.value && styles.colorDotNone,
+                      ]}
+                    >
+                      {selected ? (
+                        <Text
+                          style={[
+                            styles.colorCheck,
+                            !c.value && styles.colorCheckNone,
+                          ]}
+                        >
+                          ✓
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.descSection}>
+              <Text style={styles.label}>Description</Text>
+              <TextInput
+                value={description}
+                onChangeText={setDescription}
+                onBlur={saveDescription}
+                style={styles.descInput}
+                placeholder="Notes, contexte, détails…"
+                placeholderTextColor={theme.colors.textSubtle}
+                multiline
+                textAlignVertical="top"
+                disableFullscreenUI
+              />
             </View>
           </View>
 
-          <View style={styles.descSection}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              onBlur={saveDescription}
-              style={styles.descInput}
-              placeholder="Notes, contexte, détails…"
-              placeholderTextColor={theme.colors.textSubtle}
-              multiline
-              textAlignVertical="top"
-              disableFullscreenUI
-            />
+          <View style={styles.footer}>
+            {task?.done && task.doneAt ? (
+              <Text style={styles.doneInfo}>
+                Validée le{' '}
+                {format(parseISO(task.doneAt), "d MMMM 'à' HH:mm", {
+                  locale: fr,
+                })}
+              </Text>
+            ) : null}
+            <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
+              <Text style={styles.deleteText}>Supprimer la tâche</Text>
+            </TouchableOpacity>
           </View>
-
-          {task?.done && task.doneAt ? (
-            <Text style={styles.doneInfo}>
-              Validée le{' '}
-              {format(parseISO(task.doneAt), "d MMMM 'à' HH:mm", {
-                locale: fr,
-              })}
-            </Text>
-          ) : null}
-
-          <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-            <Text style={styles.deleteText}>Supprimer la tâche</Text>
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -234,6 +239,9 @@ export default function TaskEditScreen() {
 }
 
 const styles = StyleSheet.create({
+  animWrap: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -245,12 +253,18 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: theme.spacing.lg,
   },
+  main: {
+    flex: 1,
+  },
   section: {
     marginBottom: theme.spacing.xl,
   },
   descSection: {
     flex: 1,
     marginBottom: theme.spacing.lg,
+  },
+  footer: {
+    paddingTop: theme.spacing.md,
   },
   label: {
     fontSize: theme.font.xs,
@@ -312,7 +326,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   deleteBtn: {
-    marginTop: theme.spacing.lg,
+    marginTop: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
