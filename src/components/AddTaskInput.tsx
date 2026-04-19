@@ -87,11 +87,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
     titleRef.current?.focus();
   };
 
-  const dragGesture = Gesture.Pan()
-    // Only activate after 15px of vertical drag — taps on inputs/buttons
-    // won't trigger the gesture.
-    .activeOffsetY([-15, 15])
-    .failOffsetX([-25, 25])
+  const panGesture = Gesture.Pan()
+    .activeOffsetY([-8, 8])
     .onStart(() => {
       startHeight.value = height.value;
     })
@@ -104,6 +101,10 @@ export default function AddTaskInput({ onSubmit }: Props) {
       const target = height.value > midpoint ? MAX_HEIGHT : BASE_HEIGHT;
       height.value = withSpring(target, { damping: 20, stiffness: 180 });
     });
+
+  // Compose with Native gesture so inner TouchableOpacity / TextInput
+  // taps still work (Pan only wins after 8px vertical drag).
+  const dragGesture = Gesture.Simultaneous(panGesture, Gesture.Native());
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: height.value,
