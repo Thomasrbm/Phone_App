@@ -161,6 +161,15 @@ export default function TaskEditScreen() {
           fullScreenGestureEnabled: true,
           presentation: 'transparentModal',
           animation: 'fade',
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.headerCloseBtn}
+              hitSlop={8}
+            >
+              <Feather name="x" size={22} color={theme.colors.text} />
+            </TouchableOpacity>
+          ),
         }}
       />
       <KeyboardAvoidingView
@@ -244,27 +253,20 @@ export default function TaskEditScreen() {
                 })}
               </Text>
             ) : null}
-            <View style={styles.footerActions}>
-              <TouchableOpacity
-                onPress={handleDelete}
-                style={styles.deleteBtn}
-              >
-                <Text style={styles.deleteText}>Supprimer la tâche</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.back()}
-                style={styles.closeBtn}
-              >
-                <Feather
-                  name="x"
-                  size={22}
-                  color={theme.colors.textMuted}
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
+              <Text style={styles.deleteText}>Supprimer la tâche</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
+      {/* Dedicated edge zones above everything so horizontal swipe
+          always works (even over the description TextInput). */}
+      <GestureDetector gesture={swipeBackGesture}>
+        <View style={styles.leftEdge} />
+      </GestureDetector>
+      <GestureDetector gesture={swipeBackGesture}>
+        <View style={styles.rightEdge} />
+      </GestureDetector>
     </SafeAreaView>
     </Animated.View>
     </GestureDetector>
@@ -366,28 +368,32 @@ const styles = StyleSheet.create({
     color: theme.colors.done,
     fontWeight: '500',
   },
-  footerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
-  },
   deleteBtn: {
-    flex: 1,
+    marginTop: theme.spacing.sm,
     paddingVertical: theme.spacing.md,
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
   },
-  closeBtn: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
+  headerCloseBtn: {
+    paddingHorizontal: theme.spacing.md,
+  },
+  leftEdge: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 24,
+    zIndex: 10,
+  },
+  rightEdge: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 24,
+    zIndex: 10,
   },
   deleteText: {
     color: theme.colors.today,
