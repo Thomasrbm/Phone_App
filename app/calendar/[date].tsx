@@ -23,7 +23,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AddTaskInput from '@/components/AddTaskInput';
 import TaskItem from '@/components/TaskItem';
 import {
-  createTask,
   listDeletedTasksByDay,
   listTasksByDay,
   softDeleteTask,
@@ -113,15 +112,6 @@ export default function DayScreen() {
     }
     return out;
   }, [filtered]);
-
-  const handleAdd = async (params: {
-    title: string;
-    description: string | null;
-    color: string | null;
-  }) => {
-    await createTask({ day: date, ...params });
-    reload(true);
-  };
 
   const handleToggle = async (id: string, done: boolean) => {
     await toggleTaskDone(id, done);
@@ -324,7 +314,9 @@ export default function DayScreen() {
             </Text>
           </TouchableOpacity>
         ) : (
-          <AddTaskInput onSubmit={handleAdd} />
+          <AddTaskInput
+            onPress={() => router.push(`/task/new?day=${date}`)}
+          />
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
