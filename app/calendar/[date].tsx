@@ -1,11 +1,16 @@
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  Stack,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  FlatList,
   KeyboardAvoidingView,
+  SectionList,
   StyleSheet,
   Text,
   View,
@@ -21,6 +26,8 @@ import {
   type Task,
 } from '@/db/tasks';
 import { theme } from '@/lib/theme';
+
+type Section = { title: string; data: Task[] };
 
 export default function DayScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
@@ -39,8 +46,21 @@ export default function DayScreen() {
     }, [reload])
   );
 
-  const handleAdd = async (title: string) => {
-    await createTask({ day: date, title });
+  const sections = useMemo<Section[]>(() => {
+    const todo = tasks.filter((t) => !t.done);
+    const done = tasks.filter((t) => t.done);
+    const out: Section[] = [];
+    out.push({ title: 'À faire', data: todo });
+    if (done.length > 0) out.push({ title: 'Faits', data: done });
+    return out;
+  }, [tasks]);
+
+  const handleAdd = async (params: {
+    title: string;
+    description: string | null;
+    color: string | null;
+  }) => {
+    await createTask({ day: date, ...params });
     reload();
   };
 
@@ -74,9 +94,9 @@ export default function DayScreen() {
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
-        <FlatList
-          data={tasks}
-          keyExtractor={(t) => t.id}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <TaskItem
               task={item}
@@ -85,6 +105,11 @@ export default function DayScreen() {
               onDelete={handleDelete}
             />
           )}
+          renderSectionHeader={({ section }) =>
+            section.data.length > 0 ? (
+              <Text style={styles.sectionHeader}>{section.title}</Text>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>Aucune tâche pour ce jour.</Text>
@@ -93,6 +118,7 @@ export default function DayScreen() {
               </Text>
             </View>
           }
+          stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"
         />
         <AddTaskInput onSubmit={handleAdd} />
@@ -108,6 +134,17 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  sectionHeader: {
+    fontSize: theme.font.xs,
+    color: theme.colors.textSubtle,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
   },
   empty: {
     paddingTop: theme.spacing.xl * 2,

@@ -28,12 +28,13 @@ export default function TaskItem({ task, onToggle, onPress, onDelete }: Props) {
     ]);
   };
 
-  const subtitle = task.done && task.doneAt
-    ? `Fait à ${format(parseISO(task.doneAt), 'HH:mm')}`
-    : task.description;
+  const subtitle =
+    task.done && task.doneAt
+      ? `Fait à ${format(parseISO(task.doneAt), 'HH:mm')}`
+      : task.description;
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, task.done && styles.rowDone]}>
       <View
         style={[
           styles.colorBar,
@@ -90,8 +91,12 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
   },
+  rowDone: {
+    opacity: 0.55,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
   colorBar: {
-    width: 4,
+    width: 10,
     alignSelf: 'stretch',
     marginRight: theme.spacing.md,
   },
