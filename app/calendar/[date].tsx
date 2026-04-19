@@ -62,7 +62,21 @@ export default function DayScreen() {
         listDeletedTasksByDay(date),
       ]);
       if (animate) {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        LayoutAnimation.configureNext({
+          duration: 350,
+          create: {
+            type: LayoutAnimation.Types.easeInEaseOut,
+            property: LayoutAnimation.Properties.opacity,
+          },
+          update: {
+            type: LayoutAnimation.Types.spring,
+            springDamping: 0.7,
+          },
+          delete: {
+            type: LayoutAnimation.Types.easeInEaseOut,
+            property: LayoutAnimation.Properties.opacity,
+          },
+        });
       }
       setTasks(active);
       setDeletedCount(removed.length);

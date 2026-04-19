@@ -230,8 +230,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
             placeholder="Titre de la tâche"
             placeholderTextColor={theme.colors.textSubtle}
             style={styles.titleInput}
-            returnKeyType="done"
-            blurOnSubmit={false}
+            multiline
+            disableFullscreenUI
           />
           <TouchableOpacity
             onPress={submit}

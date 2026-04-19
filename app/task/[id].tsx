@@ -188,7 +188,7 @@ export default function TaskEditScreen() {
                 style={styles.titleInput}
                 placeholder="Titre de la tâche"
                 placeholderTextColor={theme.colors.textSubtle}
-                returnKeyType="done"
+                multiline
                 disableFullscreenUI
               />
             </View>
