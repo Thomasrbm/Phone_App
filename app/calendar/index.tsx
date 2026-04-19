@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   addMonths,
@@ -188,7 +189,7 @@ export default function CalendarScreen() {
           style={styles.menuBtn}
           hitSlop={8}
         >
-          <Text style={styles.menuIcon}>⌕</Text>
+          <Feather name="search" size={22} color={theme.colors.text} />
         </TouchableOpacity>
       </View>
 

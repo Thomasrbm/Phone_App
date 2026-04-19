@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
 import { useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -9,20 +10,24 @@ import { softColorBg } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 import type { Task } from '@/db/tasks';
 
+export type SwipeAction = 'delete' | 'restore' | 'none';
+
 type Props = {
   task: Task;
-  onToggle: (id: string, done: boolean) => void;
+  onToggle?: (id: string, done: boolean) => void;
   onPress: (id: string) => void;
-  onDelete: (id: string) => void;
-  swipeable?: boolean;
+  onSwipeAction?: (id: string) => void;
+  swipe?: SwipeAction;
+  hideCheckbox?: boolean;
 };
 
 export default function TaskItem({
   task,
   onToggle,
   onPress,
-  onDelete,
-  swipeable = true,
+  onSwipeAction,
+  swipe = 'delete',
+  hideCheckbox = false,
 }: Props) {
   const swipeableRef = useRef<Swipeable>(null);
 
@@ -34,17 +39,39 @@ export default function TaskItem({
   const tickColor = task.color ?? theme.colors.done;
   const rowBg = softColorBg(task.color);
 
-  const renderRightActions = () => (
-    <RectButton
-      style={styles.rightAction}
-      onPress={() => {
-        swipeableRef.current?.close();
-        onDelete(task.id);
-      }}
-    >
-      <Text style={styles.rightActionText}>Supprimer</Text>
-    </RectButton>
-  );
+  const renderRightActions = () => {
+    if (swipe === 'delete') {
+      return (
+        <RectButton
+          style={[styles.action, styles.actionDelete]}
+          onPress={() => {
+            swipeableRef.current?.close();
+            onSwipeAction?.(task.id);
+          }}
+        >
+          <Feather name="trash-2" size={22} color={theme.colors.textInverse} />
+        </RectButton>
+      );
+    }
+    if (swipe === 'restore') {
+      return (
+        <RectButton
+          style={[styles.action, styles.actionRestore]}
+          onPress={() => {
+            swipeableRef.current?.close();
+            onSwipeAction?.(task.id);
+          }}
+        >
+          <Feather
+            name="rotate-ccw"
+            size={22}
+            color={theme.colors.textInverse}
+          />
+        </RectButton>
+      );
+    }
+    return null;
+  };
 
   const row = (
     <View
@@ -54,23 +81,25 @@ export default function TaskItem({
         task.done && styles.rowDone,
       ]}
     >
-      <TouchableOpacity
-        onPress={() => onToggle(task.id, !task.done)}
-        style={styles.checkbox}
-        hitSlop={8}
-      >
-        <View
-          style={[
-            styles.box,
-            task.done && {
-              backgroundColor: tickColor,
-              borderColor: tickColor,
-            },
-          ]}
+      {hideCheckbox ? null : (
+        <TouchableOpacity
+          onPress={() => onToggle?.(task.id, !task.done)}
+          style={styles.checkbox}
+          hitSlop={8}
         >
-          {task.done ? <Text style={styles.check}>✓</Text> : null}
-        </View>
-      </TouchableOpacity>
+          <View
+            style={[
+              styles.box,
+              task.done && {
+                backgroundColor: tickColor,
+                borderColor: tickColor,
+              },
+            ]}
+          >
+            {task.done ? <Text style={styles.check}>✓</Text> : null}
+          </View>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity
         onPress={() => onPress(task.id)}
@@ -83,14 +112,16 @@ export default function TaskItem({
         >
           {task.title}
         </Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {subtitle ?? ' '}
-        </Text>
+        {subtitle ? (
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
       </TouchableOpacity>
     </View>
   );
 
-  if (!swipeable) return row;
+  if (swipe === 'none') return row;
 
   return (
     <Swipeable
@@ -109,9 +140,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
-    minHeight: 64,
+    height: 64,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
@@ -152,17 +182,16 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sm,
     color: theme.colors.textMuted,
     marginTop: 2,
-    minHeight: 16,
   },
-  rightAction: {
-    backgroundColor: '#e03e3e',
+  action: {
+    width: 72,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
   },
-  rightActionText: {
-    color: theme.colors.textInverse,
-    fontWeight: '700',
-    fontSize: theme.font.md,
+  actionDelete: {
+    backgroundColor: '#e03e3e',
+  },
+  actionRestore: {
+    backgroundColor: '#dfab01',
   },
 });

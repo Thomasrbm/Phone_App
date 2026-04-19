@@ -4,7 +4,6 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
@@ -70,19 +69,10 @@ export default function TaskEditScreen() {
     updateTask(id, { description: next });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!task) return;
-    Alert.alert('Supprimer la tâche', task.title, [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: async () => {
-          await softDeleteTask(id);
-          router.back();
-        },
-      },
-    ]);
+    await softDeleteTask(id);
+    router.back();
   };
 
   const headerTitle = task

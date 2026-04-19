@@ -28,12 +28,8 @@ export default function SearchScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    if (query.trim().length === 0) {
-      setResults([]);
-      return;
-    }
     const timer = setTimeout(async () => {
-      const data = await searchTasks(query.trim(), {
+      const data = await searchTasks(query, {
         deletedOnly: tab === 'deleted',
       });
       if (!cancelled) setResults(data);
@@ -102,13 +98,14 @@ export default function SearchScreen() {
           renderItem={({ item }) => (
             <SearchResultRow task={item} onPress={() => handlePress(item)} />
           )}
+          ListHeaderComponent={
+            query.trim().length === 0 && results.length > 0 ? (
+              <Text style={styles.recentLabel}>Récemment modifiées</Text>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>
-                {query.trim().length === 0
-                  ? 'Tape un mot pour chercher.'
-                  : 'Aucun résultat.'}
-              </Text>
+              <Text style={styles.emptyText}>Aucun résultat.</Text>
             </View>
           }
           keyboardShouldPersistTaps="handled"
@@ -236,5 +233,15 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: theme.font.md,
     color: theme.colors.textMuted,
+  },
+  recentLabel: {
+    fontSize: theme.font.xs,
+    color: theme.colors.textSubtle,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.sm,
   },
 });

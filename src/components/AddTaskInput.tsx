@@ -36,6 +36,14 @@ export default function AddTaskInput({ onSubmit }: Props) {
     }
   }, [expanded]);
 
+  // Auto-collapse whenever the keyboard hides (covers OS back, tap-outside, etc.)
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      setExpanded(false);
+    });
+    return () => sub.remove();
+  }, []);
+
   const canSubmit = title.trim().length > 0;
 
   const submit = () => {

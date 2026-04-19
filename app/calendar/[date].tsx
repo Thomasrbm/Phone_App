@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import {
   Stack,
   useFocusEffect,
@@ -9,12 +10,13 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   LayoutAnimation,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,8 +26,6 @@ import {
   createTask,
   listDeletedTasksByDay,
   listTasksByDay,
-  permanentlyDeleteTask,
-  restoreTask,
   softDeleteTask,
   toggleTaskDone,
   type Task,
@@ -34,13 +34,15 @@ import { theme } from '@/lib/theme';
 
 type ListItem =
   | { type: 'header'; key: string; title: string }
-  | { type: 'task'; key: string; task: Task; section: 'todo' | 'done' | 'deleted' };
+  | { type: 'task'; key: string; task: Task };
 
 export default function DayScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [deleted, setDeleted] = useState<Task[]>([]);
+  const [deletedCount, setDeletedCount] = useState<number>(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const headerHeight = useHeaderHeight();
 
   const reload = useCallback(
@@ -53,7 +55,7 @@ export default function DayScreen() {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       }
       setTasks(active);
-      setDeleted(removed);
+      setDeletedCount(removed.length);
     },
     [date]
   );
@@ -64,27 +66,32 @@ export default function DayScreen() {
     }, [reload])
   );
 
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tasks;
+    return tasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description?.toLowerCase().includes(q) ?? false)
+    );
+  }, [tasks, searchQuery]);
+
   const items = useMemo<ListItem[]>(() => {
-    const todo = tasks.filter((t) => !t.done);
-    const done = tasks.filter((t) => t.done);
+    const todo = filtered.filter((t) => !t.done);
+    const done = filtered.filter((t) => t.done);
     const out: ListItem[] = [];
     if (todo.length > 0) {
       out.push({ type: 'header', key: 'h-todo', title: 'À faire' });
       for (const t of todo)
-        out.push({ type: 'task', key: t.id, task: t, section: 'todo' });
+        out.push({ type: 'task', key: t.id, task: t });
     }
     if (done.length > 0) {
       out.push({ type: 'header', key: 'h-done', title: 'Faits' });
       for (const t of done)
-        out.push({ type: 'task', key: t.id, task: t, section: 'done' });
-    }
-    if (deleted.length > 0) {
-      out.push({ type: 'header', key: 'h-del', title: 'Supprimées' });
-      for (const t of deleted)
-        out.push({ type: 'task', key: t.id, task: t, section: 'deleted' });
+        out.push({ type: 'task', key: t.id, task: t });
     }
     return out;
-  }, [tasks, deleted]);
+  }, [filtered]);
 
   const handleAdd = async (params: {
     title: string;
@@ -109,29 +116,6 @@ export default function DayScreen() {
     reload(true);
   };
 
-  const handleDeletedPress = (id: string) => {
-    const task = deleted.find((t) => t.id === id);
-    if (!task) return;
-    Alert.alert(task.title, 'Que veux-tu faire de cette tâche supprimée ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Restaurer',
-        onPress: async () => {
-          await restoreTask(id);
-          reload(true);
-        },
-      },
-      {
-        text: 'Supprimer définitivement',
-        style: 'destructive',
-        onPress: async () => {
-          await permanentlyDeleteTask(id);
-          reload(true);
-        },
-      },
-    ]);
-  };
-
   const title = format(parseISO(date), 'EEEE d MMMM', { locale: fr });
 
   return (
@@ -141,6 +125,39 @@ export default function DayScreen() {
           headerShown: true,
           title: title.charAt(0).toUpperCase() + title.slice(1),
           headerBackTitle: 'Mois',
+          headerRight: () => (
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={() => setSearchOpen((s) => !s)}
+                style={styles.headerBtn}
+                hitSlop={8}
+              >
+                <Feather
+                  name="search"
+                  size={20}
+                  color={
+                    searchOpen ? theme.colors.accent : theme.colors.text
+                  }
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push(`/trash/${date}`)}
+                style={styles.headerBtn}
+                hitSlop={8}
+              >
+                <Feather
+                  name="trash-2"
+                  size={20}
+                  color={theme.colors.text}
+                />
+                {deletedCount > 0 ? (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{deletedCount}</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            </View>
+          ),
         }}
       />
       <KeyboardAvoidingView
@@ -148,6 +165,25 @@ export default function DayScreen() {
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
+        {searchOpen ? (
+          <View style={styles.searchBar}>
+            <Feather
+              name="search"
+              size={16}
+              color={theme.colors.textMuted}
+              style={styles.searchIcon}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Rechercher dans ce jour…"
+              placeholderTextColor={theme.colors.textSubtle}
+              style={styles.searchInput}
+              autoFocus
+              returnKeyType="search"
+            />
+          </View>
+        ) : null}
         <FlatList
           data={items}
           keyExtractor={(item) => item.key}
@@ -155,23 +191,28 @@ export default function DayScreen() {
             if (item.type === 'header') {
               return <Text style={styles.sectionHeader}>{item.title}</Text>;
             }
-            const isDeleted = item.section === 'deleted';
             return (
               <TaskItem
                 task={item.task}
-                onToggle={isDeleted ? () => {} : handleToggle}
-                onPress={isDeleted ? handleDeletedPress : handleEditPress}
-                onDelete={handleSwipeDelete}
-                swipeable={!isDeleted}
+                onToggle={handleToggle}
+                onPress={handleEditPress}
+                onSwipeAction={handleSwipeDelete}
+                swipe="delete"
               />
             );
           }}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>Aucune tâche pour ce jour.</Text>
-              <Text style={styles.emptyHint}>
-                Ajoute-en une avec l'input en bas.
+              <Text style={styles.emptyText}>
+                {searchQuery
+                  ? 'Aucun résultat.'
+                  : 'Aucune tâche pour ce jour.'}
               </Text>
+              {!searchQuery ? (
+                <Text style={styles.emptyHint}>
+                  Ajoute-en une avec l'input en bas.
+                </Text>
+              ) : null}
             </View>
           }
           keyboardShouldPersistTaps="handled"
@@ -189,6 +230,51 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.lg,
+    paddingRight: theme.spacing.sm,
+  },
+  headerBtn: {
+    padding: theme.spacing.xs,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: theme.colors.today,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: theme.colors.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  searchIcon: {
+    marginRight: theme.spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: theme.font.md,
+    color: theme.colors.text,
+    paddingVertical: 4,
   },
   sectionHeader: {
     fontSize: theme.font.xs,

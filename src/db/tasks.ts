@@ -93,15 +93,21 @@ export async function searchTasks(
   options: { includeDeleted?: boolean; deletedOnly?: boolean } = {}
 ): Promise<Task[]> {
   const db = await getDatabase();
-  const q = `%${query}%`;
-  let where = '(title LIKE ? OR description LIKE ?)';
-  if (options.deletedOnly) {
-    where += ' AND deleted_at IS NOT NULL';
-  } else if (!options.includeDeleted) {
-    where += ' AND deleted_at IS NULL';
+  const trimmed = query.trim();
+  let deletedFilter = 'deleted_at IS NULL';
+  if (options.deletedOnly) deletedFilter = 'deleted_at IS NOT NULL';
+  else if (options.includeDeleted) deletedFilter = '1 = 1';
+
+  if (trimmed.length === 0) {
+    const rows = await db.getAllAsync<TaskRow>(
+      `SELECT * FROM tasks WHERE ${deletedFilter} ORDER BY updated_at DESC LIMIT 50`
+    );
+    return rows.map(rowToTask);
   }
+
+  const q = `%${trimmed}%`;
   const rows = await db.getAllAsync<TaskRow>(
-    `SELECT * FROM tasks WHERE ${where} ORDER BY day DESC, created_at DESC LIMIT 100`,
+    `SELECT * FROM tasks WHERE (title LIKE ? OR description LIKE ?) AND ${deletedFilter} ORDER BY updated_at DESC LIMIT 100`,
     q,
     q
   );
