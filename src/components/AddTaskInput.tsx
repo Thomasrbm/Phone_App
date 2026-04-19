@@ -89,6 +89,10 @@ export default function AddTaskInput({ onSubmit }: Props) {
   };
 
   const dragGesture = Gesture.Pan()
+    // Only activate after 15px of vertical drag — taps on inputs/buttons
+    // won't trigger the gesture.
+    .activeOffsetY([-15, 15])
+    .failOffsetX([-25, 25])
     .onStart(() => {
       startHeight.value = height.value;
     })
@@ -97,7 +101,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
       height.value = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, next));
     })
     .onEnd(() => {
-      // Snap to base or max depending on midpoint
       const midpoint = (BASE_HEIGHT + MAX_HEIGHT) / 2;
       const target = height.value > midpoint ? MAX_HEIGHT : BASE_HEIGHT;
       height.value = withSpring(target, { damping: 20, stiffness: 180 });
@@ -123,13 +126,12 @@ export default function AddTaskInput({ onSubmit }: Props) {
   }
 
   return (
-    <Animated.View style={[styles.expanded, animatedStyle]}>
-      <GestureDetector gesture={dragGesture}>
+    <GestureDetector gesture={dragGesture}>
+      <Animated.View style={[styles.expanded, animatedStyle]}>
         <View style={styles.dragHandleArea}>
           <View style={styles.dragHandleBar} />
         </View>
-      </GestureDetector>
-      <View style={styles.titleRow}>
+        <View style={styles.titleRow}>
         <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
           <Feather name="x" size={22} color={theme.colors.textMuted} />
         </TouchableOpacity>
@@ -199,7 +201,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
           />
         </Pressable>
       </ScrollView>
-    </Animated.View>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
