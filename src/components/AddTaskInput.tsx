@@ -1,14 +1,15 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dimensions,
   Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { TASK_COLORS } from '@/lib/colors';
@@ -25,20 +26,21 @@ type Props = {
 };
 
 export default function AddTaskInput({ onSubmit }: Props) {
-  // Lock the expanded height to ~45% of initial window so keyboard
-  // open/close doesn't make the form jump in size.
-  const [expandedHeight] = useState(() => {
-    const h = Dimensions.get('window').height;
-    // ~40% of window, capped at 340px so it never feels overwhelming
-    return Math.min(Math.round((h || 700) * 0.4), 340);
-  });
-
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<string | null>(null);
+  const [kbHeight, setKbHeight] = useState(0);
   const titleRef = useRef<TextInput>(null);
   const descRef = useRef<TextInput>(null);
+
+  const winH = useWindowDimensions().height;
+  // On Android with adjustResize, winH already excludes the keyboard.
+  // On iOS we have to subtract it manually.
+  const expandedHeight = useMemo(() => {
+    const visible = Platform.OS === 'android' ? winH : winH - kbHeight;
+    return Math.max(220, Math.min(340, Math.round(visible * 0.5)));
+  }, [winH, kbHeight]);
 
   useEffect(() => {
     if (open) {
@@ -47,11 +49,19 @@ export default function AddTaskInput({ onSubmit }: Props) {
     }
   }, [open]);
 
-  // Auto-close when keyboard hides (OS back, accidental tap-outside).
-  // Color taps inside the form are protected by keyboardShouldPersistTaps.
+  // Track keyboard so we can shrink the form when it appears
   useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidHide', () => setOpen(false));
-    return () => sub.remove();
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) =>
+      setKbHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKbHeight(0);
+      setOpen(false);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const canSubmit = title.trim().length > 0;
