@@ -1,11 +1,10 @@
 import { format, parseISO } from 'date-fns';
+import { useRef } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
-  Alert,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+  RectButton,
+  Swipeable,
+} from 'react-native-gesture-handler';
 import { softColorBg } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 import type { Task } from '@/db/tasks';
@@ -15,19 +14,17 @@ type Props = {
   onToggle: (id: string, done: boolean) => void;
   onPress: (id: string) => void;
   onDelete: (id: string) => void;
+  swipeable?: boolean;
 };
 
-export default function TaskItem({ task, onToggle, onPress, onDelete }: Props) {
-  const confirmDelete = () => {
-    Alert.alert('Supprimer la tâche', task.title, [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: () => onDelete(task.id),
-      },
-    ]);
-  };
+export default function TaskItem({
+  task,
+  onToggle,
+  onPress,
+  onDelete,
+  swipeable = true,
+}: Props) {
+  const swipeableRef = useRef<Swipeable>(null);
 
   const subtitle =
     task.done && task.doneAt
@@ -37,7 +34,19 @@ export default function TaskItem({ task, onToggle, onPress, onDelete }: Props) {
   const tickColor = task.color ?? theme.colors.done;
   const rowBg = softColorBg(task.color);
 
-  return (
+  const renderRightActions = () => (
+    <RectButton
+      style={styles.rightAction}
+      onPress={() => {
+        swipeableRef.current?.close();
+        onDelete(task.id);
+      }}
+    >
+      <Text style={styles.rightActionText}>Supprimer</Text>
+    </RectButton>
+  );
+
+  const row = (
     <View
       style={[
         styles.row,
@@ -70,25 +79,29 @@ export default function TaskItem({ task, onToggle, onPress, onDelete }: Props) {
       >
         <Text
           style={[styles.title, task.done && styles.titleDone]}
-          numberOfLines={2}
+          numberOfLines={1}
         >
           {task.title}
         </Text>
-        {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {subtitle}
-          </Text>
-        ) : null}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={confirmDelete}
-        style={styles.deleteBtn}
-        hitSlop={8}
-      >
-        <Text style={styles.deleteText}>✕</Text>
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {subtitle ?? ' '}
+        </Text>
       </TouchableOpacity>
     </View>
+  );
+
+  if (!swipeable) return row;
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
+      rightThreshold={40}
+    >
+      {row}
+    </Swipeable>
   );
 }
 
@@ -98,6 +111,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
+    minHeight: 64,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
@@ -124,6 +138,7 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
+    justifyContent: 'center',
   },
   title: {
     fontSize: theme.font.lg,
@@ -137,14 +152,17 @@ const styles = StyleSheet.create({
     fontSize: theme.font.sm,
     color: theme.colors.textMuted,
     marginTop: 2,
+    minHeight: 16,
   },
-  deleteBtn: {
-    marginLeft: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
+  rightAction: {
+    backgroundColor: '#e03e3e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
   },
-  deleteText: {
-    fontSize: theme.font.lg,
-    color: theme.colors.textMuted,
-    fontWeight: '500',
+  rightActionText: {
+    color: theme.colors.textInverse,
+    fontWeight: '700',
+    fontSize: theme.font.md,
   },
 });

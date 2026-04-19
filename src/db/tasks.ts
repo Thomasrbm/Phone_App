@@ -9,6 +9,7 @@ export type Task = {
   color: string | null;
   done: boolean;
   doneAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -21,6 +22,7 @@ type TaskRow = {
   color: string | null;
   done: number;
   done_at: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -34,6 +36,7 @@ function rowToTask(row: TaskRow): Task {
     color: row.color,
     done: row.done === 1,
     doneAt: row.done_at,
+    deletedAt: row.deleted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -47,7 +50,7 @@ export async function getTaskCountsInRange(
 ): Promise<Record<string, DayCounts>> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<{ day: string; total: number; done: number }>(
-    'SELECT day, COUNT(*) AS total, SUM(done) AS done FROM tasks WHERE day >= ? AND day <= ? GROUP BY day',
+    'SELECT day, COUNT(*) AS total, SUM(done) AS done FROM tasks WHERE day >= ? AND day <= ? AND deleted_at IS NULL GROUP BY day',
     startDay,
     endDay
   );
@@ -61,7 +64,16 @@ export async function getTaskCountsInRange(
 export async function listTasksByDay(day: string): Promise<Task[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<TaskRow>(
-    'SELECT * FROM tasks WHERE day = ? ORDER BY created_at ASC',
+    'SELECT * FROM tasks WHERE day = ? AND deleted_at IS NULL ORDER BY created_at ASC',
+    day
+  );
+  return rows.map(rowToTask);
+}
+
+export async function listDeletedTasksByDay(day: string): Promise<Task[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<TaskRow>(
+    'SELECT * FROM tasks WHERE day = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC',
     day
   );
   return rows.map(rowToTask);
@@ -76,6 +88,26 @@ export async function getTaskById(id: string): Promise<Task | null> {
   return row ? rowToTask(row) : null;
 }
 
+export async function searchTasks(
+  query: string,
+  options: { includeDeleted?: boolean; deletedOnly?: boolean } = {}
+): Promise<Task[]> {
+  const db = await getDatabase();
+  const q = `%${query}%`;
+  let where = '(title LIKE ? OR description LIKE ?)';
+  if (options.deletedOnly) {
+    where += ' AND deleted_at IS NOT NULL';
+  } else if (!options.includeDeleted) {
+    where += ' AND deleted_at IS NULL';
+  }
+  const rows = await db.getAllAsync<TaskRow>(
+    `SELECT * FROM tasks WHERE ${where} ORDER BY day DESC, created_at DESC LIMIT 100`,
+    q,
+    q
+  );
+  return rows.map(rowToTask);
+}
+
 export async function createTask(params: {
   day: string;
   title: string;
@@ -88,7 +120,7 @@ export async function createTask(params: {
   const description = params.description ?? null;
   const color = params.color ?? null;
   await db.runAsync(
-    'INSERT INTO tasks (id, day, title, description, color, done, done_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, ?, ?)',
+    'INSERT INTO tasks (id, day, title, description, color, done, done_at, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)',
     id,
     params.day,
     params.title,
@@ -105,6 +137,7 @@ export async function createTask(params: {
     color,
     done: false,
     doneAt: null,
+    deletedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -153,7 +186,28 @@ export async function toggleTaskDone(id: string, done: boolean): Promise<void> {
   );
 }
 
-export async function deleteTask(id: string): Promise<void> {
+export async function softDeleteTask(id: string): Promise<void> {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    'UPDATE tasks SET deleted_at = ?, updated_at = ? WHERE id = ?',
+    now,
+    now,
+    id
+  );
+}
+
+export async function restoreTask(id: string): Promise<void> {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    'UPDATE tasks SET deleted_at = NULL, updated_at = ? WHERE id = ?',
+    now,
+    id
+  );
+}
+
+export async function permanentlyDeleteTask(id: string): Promise<void> {
   const db = await getDatabase();
   await db.runAsync('DELETE FROM tasks WHERE id = ?', id);
 }

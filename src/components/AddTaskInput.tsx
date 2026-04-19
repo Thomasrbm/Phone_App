@@ -40,6 +40,8 @@ export default function AddTaskInput({ onSubmit }: Props) {
 
   const submit = () => {
     if (!canSubmit) return;
+    inputRef.current?.blur();
+    Keyboard.dismiss();
     onSubmit({
       title: title.trim(),
       description: description.trim() || null,
@@ -48,12 +50,12 @@ export default function AddTaskInput({ onSubmit }: Props) {
     setTitle('');
     setDescription('');
     setColor(null);
-    Keyboard.dismiss();
     setExpanded(false);
   };
 
   const cancel = () => {
     // Keep draft (title, description, color) — only collapse + dismiss kb.
+    inputRef.current?.blur();
     Keyboard.dismiss();
     setExpanded(false);
   };

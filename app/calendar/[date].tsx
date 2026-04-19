@@ -9,8 +9,10 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useMemo, useState } from 'react';
 import {
+  Alert,
+  FlatList,
   KeyboardAvoidingView,
-  SectionList,
+  LayoutAnimation,
   StyleSheet,
   Text,
   View,
@@ -20,25 +22,41 @@ import AddTaskInput from '@/components/AddTaskInput';
 import TaskItem from '@/components/TaskItem';
 import {
   createTask,
-  deleteTask,
+  listDeletedTasksByDay,
   listTasksByDay,
+  permanentlyDeleteTask,
+  restoreTask,
+  softDeleteTask,
   toggleTaskDone,
   type Task,
 } from '@/db/tasks';
 import { theme } from '@/lib/theme';
 
-type Section = { title: string; data: Task[] };
+type ListItem =
+  | { type: 'header'; key: string; title: string }
+  | { type: 'task'; key: string; task: Task; section: 'todo' | 'done' | 'deleted' };
 
 export default function DayScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [deleted, setDeleted] = useState<Task[]>([]);
   const headerHeight = useHeaderHeight();
 
-  const reload = useCallback(async () => {
-    const data = await listTasksByDay(date);
-    setTasks(data);
-  }, [date]);
+  const reload = useCallback(
+    async (animate = false) => {
+      const [active, removed] = await Promise.all([
+        listTasksByDay(date),
+        listDeletedTasksByDay(date),
+      ]);
+      if (animate) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+      setTasks(active);
+      setDeleted(removed);
+    },
+    [date]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -46,14 +64,27 @@ export default function DayScreen() {
     }, [reload])
   );
 
-  const sections = useMemo<Section[]>(() => {
+  const items = useMemo<ListItem[]>(() => {
     const todo = tasks.filter((t) => !t.done);
     const done = tasks.filter((t) => t.done);
-    const out: Section[] = [];
-    out.push({ title: 'À faire', data: todo });
-    if (done.length > 0) out.push({ title: 'Faits', data: done });
+    const out: ListItem[] = [];
+    if (todo.length > 0) {
+      out.push({ type: 'header', key: 'h-todo', title: 'À faire' });
+      for (const t of todo)
+        out.push({ type: 'task', key: t.id, task: t, section: 'todo' });
+    }
+    if (done.length > 0) {
+      out.push({ type: 'header', key: 'h-done', title: 'Faits' });
+      for (const t of done)
+        out.push({ type: 'task', key: t.id, task: t, section: 'done' });
+    }
+    if (deleted.length > 0) {
+      out.push({ type: 'header', key: 'h-del', title: 'Supprimées' });
+      for (const t of deleted)
+        out.push({ type: 'task', key: t.id, task: t, section: 'deleted' });
+    }
     return out;
-  }, [tasks]);
+  }, [tasks, deleted]);
 
   const handleAdd = async (params: {
     title: string;
@@ -61,21 +92,44 @@ export default function DayScreen() {
     color: string | null;
   }) => {
     await createTask({ day: date, ...params });
-    reload();
+    reload(true);
   };
 
   const handleToggle = async (id: string, done: boolean) => {
     await toggleTaskDone(id, done);
-    reload();
+    reload(true);
   };
 
-  const handlePress = (id: string) => {
+  const handleEditPress = (id: string) => {
     router.push(`/task/${id}`);
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteTask(id);
-    reload();
+  const handleSwipeDelete = async (id: string) => {
+    await softDeleteTask(id);
+    reload(true);
+  };
+
+  const handleDeletedPress = (id: string) => {
+    const task = deleted.find((t) => t.id === id);
+    if (!task) return;
+    Alert.alert(task.title, 'Que veux-tu faire de cette tâche supprimée ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Restaurer',
+        onPress: async () => {
+          await restoreTask(id);
+          reload(true);
+        },
+      },
+      {
+        text: 'Supprimer définitivement',
+        style: 'destructive',
+        onPress: async () => {
+          await permanentlyDeleteTask(id);
+          reload(true);
+        },
+      },
+    ]);
   };
 
   const title = format(parseISO(date), 'EEEE d MMMM', { locale: fr });
@@ -94,22 +148,24 @@ export default function DayScreen() {
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <TaskItem
-              task={item}
-              onToggle={handleToggle}
-              onPress={handlePress}
-              onDelete={handleDelete}
-            />
-          )}
-          renderSectionHeader={({ section }) =>
-            section.data.length > 0 ? (
-              <Text style={styles.sectionHeader}>{section.title}</Text>
-            ) : null
-          }
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => {
+            if (item.type === 'header') {
+              return <Text style={styles.sectionHeader}>{item.title}</Text>;
+            }
+            const isDeleted = item.section === 'deleted';
+            return (
+              <TaskItem
+                task={item.task}
+                onToggle={isDeleted ? () => {} : handleToggle}
+                onPress={isDeleted ? handleDeletedPress : handleEditPress}
+                onDelete={handleSwipeDelete}
+                swipeable={!isDeleted}
+              />
+            );
+          }}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyText}>Aucune tâche pour ce jour.</Text>
@@ -118,7 +174,6 @@ export default function DayScreen() {
               </Text>
             </View>
           }
-          stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"
         />
         <AddTaskInput onSubmit={handleAdd} />

@@ -17,8 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 import {
-  deleteTask,
   getTaskById,
+  softDeleteTask,
   updateTask,
   type Task,
 } from '@/db/tasks';
@@ -78,7 +78,7 @@ export default function TaskEditScreen() {
         text: 'Supprimer',
         style: 'destructive',
         onPress: async () => {
-          await deleteTask(id);
+          await softDeleteTask(id);
           router.back();
         },
       },

@@ -183,7 +183,13 @@ export default function CalendarScreen() {
           <TodayButton day={today.getDate()} onPress={goToToday} />
         </View>
 
-        <View style={styles.menuBtn} />
+        <TouchableOpacity
+          onPress={() => router.push('/search')}
+          style={styles.menuBtn}
+          hitSlop={8}
+        >
+          <Text style={styles.menuIcon}>⌕</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.header}>
