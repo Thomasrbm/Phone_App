@@ -252,6 +252,7 @@ export default function DayScreen() {
           </View>
         ) : null}
         <FlatList
+          style={styles.flex}
           data={items}
           keyExtractor={(item) => item.key}
           renderItem={({ item }) => {

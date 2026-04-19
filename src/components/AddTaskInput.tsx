@@ -27,9 +27,11 @@ type Props = {
 export default function AddTaskInput({ onSubmit }: Props) {
   // Lock the expanded height to ~45% of initial window so keyboard
   // open/close doesn't make the form jump in size.
-  const [expandedHeight] = useState(() =>
-    Math.round(Dimensions.get('window').height * 0.45)
-  );
+  const [expandedHeight] = useState(() => {
+    const h = Dimensions.get('window').height;
+    // ~40% of window, capped at 340px so it never feels overwhelming
+    return Math.min(Math.round((h || 700) * 0.4), 340);
+  });
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
