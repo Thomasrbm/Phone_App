@@ -19,7 +19,9 @@ import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 
 const BASE_HEIGHT = 380;
+const MID_HEIGHT = 540;
 const MIN_HEIGHT = 220;
+const HORIZONTAL_EXIT_THRESHOLD = 80;
 
 type SubmitParams = {
   title: string;
@@ -40,13 +42,12 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const descRef = useRef<TextInput>(null);
 
   const winH = useWindowDimensions().height;
-  // Fullscreen-ish max — leaves a tiny bit of room for the system status
-  // bar / header area so the user can still see they're in the app.
   const maxHeight = useMemo(() => Math.round(winH * 0.92), [winH]);
 
   const height = useSharedValue(BASE_HEIGHT);
   const startHeight = useSharedValue(BASE_HEIGHT);
   const maxHeightSV = useSharedValue(maxHeight);
+  const midHeightSV = useSharedValue(MID_HEIGHT);
 
   useEffect(() => {
     maxHeightSV.value = maxHeight;
@@ -94,9 +95,14 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const pickColor = (c: string | null) => {
     setColor(c);
     titleRef.current?.focus();
+    // Tapping a color expands the form to mid-height (if currently small)
+    // so the user gets more room for the description right after picking.
+    if (height.value < MID_HEIGHT - 10) {
+      height.value = withSpring(MID_HEIGHT, { damping: 20, stiffness: 180 });
+    }
   };
 
-  const dragGesture = Gesture.Pan()
+  const verticalPan = Gesture.Pan()
     .activeOffsetY([-5, 5])
     .failOffsetX([-30, 30])
     .shouldCancelWhenOutside(false)
@@ -108,10 +114,37 @@ export default function AddTaskInput({ onSubmit }: Props) {
       height.value = Math.max(MIN_HEIGHT, Math.min(maxHeightSV.value, next));
     })
     .onEnd(() => {
-      const mid = (BASE_HEIGHT + maxHeightSV.value) / 2;
-      const target = height.value > mid ? maxHeightSV.value : BASE_HEIGHT;
-      height.value = withSpring(target, { damping: 20, stiffness: 180 });
+      // Snap to nearest of BASE / MID / MAX
+      const targets = [BASE_HEIGHT, midHeightSV.value, maxHeightSV.value];
+      let best = targets[0];
+      let bestDist = Math.abs(targets[0] - height.value);
+      for (let i = 1; i < targets.length; i++) {
+        const d = Math.abs(targets[i] - height.value);
+        if (d < bestDist) {
+          best = targets[i];
+          bestDist = d;
+        }
+      }
+      height.value = withSpring(best, { damping: 20, stiffness: 180 });
     });
+
+  // Horizontal swipe to exit fullscreen (collapse to BASE)
+  const horizontalSwipe = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .failOffsetY([-15, 15])
+    .onEnd((e) => {
+      if (
+        Math.abs(e.translationX) > HORIZONTAL_EXIT_THRESHOLD &&
+        height.value > BASE_HEIGHT + 40
+      ) {
+        height.value = withSpring(BASE_HEIGHT, {
+          damping: 20,
+          stiffness: 180,
+        });
+      }
+    });
+
+  const dragGesture = Gesture.Race(verticalPan, horizontalSwipe);
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -126,89 +159,100 @@ export default function AddTaskInput({ onSubmit }: Props) {
       >
         <Text style={styles.collapsedText}>Ajouter une nouvelle tâche</Text>
         <View style={styles.btnSmall}>
-          <Feather name="plus" size={18} color={theme.colors.textInverse} />
+          <Feather name="plus" size={26} color={theme.colors.textInverse} />
         </View>
       </TouchableOpacity>
     );
   }
 
+  const cycleHeight = () => {
+    const order = [BASE_HEIGHT, MID_HEIGHT, maxHeight];
+    const current = height.value;
+    let next = order[0];
+    // Pick the next stop > current; wrap to BASE if at top
+    for (const h of order) {
+      if (h > current + 20) {
+        next = h;
+        break;
+      }
+      next = order[0];
+    }
+    height.value = withSpring(next, { damping: 20, stiffness: 180 });
+  };
+
   return (
     <GestureDetector gesture={dragGesture}>
       <Animated.View style={[styles.expanded, animatedStyle]}>
         <TouchableOpacity
-          onPress={() => {
-            const mid = (BASE_HEIGHT + maxHeight) / 2;
-            const target = height.value < mid ? maxHeight : BASE_HEIGHT;
-            height.value = withSpring(target, { damping: 20, stiffness: 180 });
-          }}
+          onPress={cycleHeight}
           activeOpacity={0.6}
           style={styles.dragHandleArea}
         >
           <View style={styles.dragHandleBar} />
         </TouchableOpacity>
         <View style={styles.titleRow}>
-        <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
-          <Feather name="x" size={22} color={theme.colors.textMuted} />
-        </TouchableOpacity>
-        <TextInput
-          ref={titleRef}
-          value={title}
-          onChangeText={setTitle}
-          placeholder="Titre de la tâche"
-          placeholderTextColor={theme.colors.textSubtle}
-          style={styles.titleInput}
-          returnKeyType="done"
-          blurOnSubmit={false}
-        />
-        <TouchableOpacity
-          onPress={submit}
-          disabled={!canSubmit}
-          style={[styles.btnPrimary, !canSubmit && styles.btnDisabled]}
-        >
-          <Feather name="plus" size={20} color={theme.colors.textInverse} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.contentArea}>
-        <Text style={styles.label}>Couleur</Text>
-        <View style={styles.colorRow}>
-          {TASK_COLORS.map((c) => {
-            const selected = c.value === color;
-            return (
-              <TouchableOpacity
-                key={c.id}
-                onPress={() => pickColor(c.value)}
-                style={[
-                  styles.colorDot,
-                  { backgroundColor: c.value ?? theme.colors.surfaceAlt },
-                  selected && styles.colorDotSelected,
-                  !c.value && styles.colorDotNone,
-                ]}
-              >
-                {selected ? (
-                  <Feather
-                    name="check"
-                    size={16}
-                    color={
-                      c.value ? theme.colors.textInverse : theme.colors.text
-                    }
-                  />
-                ) : null}
-              </TouchableOpacity>
-            );
-          })}
+          <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
+            <Feather name="x" size={22} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+          <TextInput
+            ref={titleRef}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Titre de la tâche"
+            placeholderTextColor={theme.colors.textSubtle}
+            style={styles.titleInput}
+            returnKeyType="done"
+            blurOnSubmit={false}
+          />
+          <TouchableOpacity
+            onPress={submit}
+            disabled={!canSubmit}
+            style={[styles.btnPrimary, !canSubmit && styles.btnDisabled]}
+          >
+            <Feather name="plus" size={22} color={theme.colors.textInverse} />
+          </TouchableOpacity>
         </View>
-        <Text style={[styles.label, styles.labelDesc]}>Description</Text>
-        <TextInput
-          ref={descRef}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Notes, contexte, détails…"
-          placeholderTextColor={theme.colors.textSubtle}
-          style={styles.descInput}
-          multiline
-          textAlignVertical="top"
-        />
-      </View>
+        <View style={styles.contentArea}>
+          <Text style={styles.label}>Couleur</Text>
+          <View style={styles.colorRow}>
+            {TASK_COLORS.map((c) => {
+              const selected = c.value === color;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  onPress={() => pickColor(c.value)}
+                  style={[
+                    styles.colorDot,
+                    { backgroundColor: c.value ?? theme.colors.surfaceAlt },
+                    selected && styles.colorDotSelected,
+                    !c.value && styles.colorDotNone,
+                  ]}
+                >
+                  {selected ? (
+                    <Feather
+                      name="check"
+                      size={16}
+                      color={
+                        c.value ? theme.colors.textInverse : theme.colors.text
+                      }
+                    />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={[styles.label, styles.labelDesc]}>Description</Text>
+          <TextInput
+            ref={descRef}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Notes, contexte, détails…"
+            placeholderTextColor={theme.colors.textSubtle}
+            style={styles.descInput}
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
       </Animated.View>
     </GestureDetector>
   );
@@ -223,7 +267,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 10,
+    paddingVertical: 14,
   },
   collapsedText: {
     flex: 1,
@@ -231,9 +275,9 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
   btnSmall: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -250,9 +294,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dragHandleBar: {
-    width: 60,
-    height: 6,
-    borderRadius: 3,
+    width: 70,
+    height: 7,
+    borderRadius: 4,
     backgroundColor: theme.colors.textSubtle,
   },
   titleRow: {
@@ -280,9 +324,9 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.xs,
   },
   btnPrimary: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -293,9 +337,6 @@ const styles = StyleSheet.create({
   contentArea: {
     flex: 1,
     padding: theme.spacing.lg,
-  },
-  descGrowWrap: {
-    flex: 1,
   },
   label: {
     fontSize: theme.font.xs,
