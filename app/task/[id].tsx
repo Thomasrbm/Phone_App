@@ -86,6 +86,8 @@ export default function TaskEditScreen() {
           headerShown: true,
           title: headerTitle,
           headerBackTitle: 'Retour',
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
         }}
       />
       <KeyboardAvoidingView
