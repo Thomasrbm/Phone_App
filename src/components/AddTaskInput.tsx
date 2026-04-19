@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -153,12 +152,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
           <Feather name="plus" size={20} color={theme.colors.textInverse} />
         </TouchableOpacity>
       </View>
-      <ScrollView
-        style={styles.scrollFlex}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="always"
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.contentArea}>
         <Text style={styles.label}>Couleur</Text>
         <View style={styles.colorRow}>
           {TASK_COLORS.map((c) => {
@@ -188,7 +182,10 @@ export default function AddTaskInput({ onSubmit }: Props) {
           })}
         </View>
         <Text style={[styles.label, styles.labelDesc]}>Description</Text>
-        <Pressable onPress={() => descRef.current?.focus()}>
+        <Pressable
+          onPress={() => descRef.current?.focus()}
+          style={styles.descGrowWrap}
+        >
           <TextInput
             ref={descRef}
             value={description}
@@ -200,7 +197,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
             textAlignVertical="top"
           />
         </Pressable>
-      </ScrollView>
+      </View>
       </Animated.View>
     </GestureDetector>
   );
@@ -281,12 +278,12 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.3,
   },
-  scrollFlex: {
+  contentArea: {
     flex: 1,
-  },
-  scrollContent: {
     padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl * 2,
+  },
+  descGrowWrap: {
+    flex: 1,
   },
   label: {
     fontSize: theme.font.xs,
@@ -321,9 +318,10 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.text,
   },
   descInput: {
+    flex: 1,
     fontSize: theme.font.md,
     color: theme.colors.text,
-    minHeight: 120,
+    minHeight: 60,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.background,
