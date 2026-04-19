@@ -7,6 +7,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   LayoutAnimation,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -162,8 +163,8 @@ export default function TaskEditScreen() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
         <View style={styles.content}>
           <View style={styles.main}>
@@ -266,27 +267,27 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: 80,
   },
   main: {
     flex: 1,
-    flexShrink: 1,
     overflow: 'hidden',
   },
   section: {
-    flexShrink: 0,
     marginBottom: theme.spacing.xl,
   },
   descSection: {
     flex: 1,
-    flexShrink: 1,
     overflow: 'hidden',
-    marginBottom: theme.spacing.lg,
   },
   footer: {
-    flexGrow: 0,
-    flexShrink: 0,
-    paddingTop: theme.spacing.md,
+    position: 'absolute',
+    bottom: theme.spacing.md,
+    left: theme.spacing.lg,
+    right: theme.spacing.lg,
+    backgroundColor: theme.colors.background,
   },
   label: {
     fontSize: theme.font.xs,
