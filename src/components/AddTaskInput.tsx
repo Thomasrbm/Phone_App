@@ -159,7 +159,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
       >
         <Text style={styles.collapsedText}>Ajouter une nouvelle tâche</Text>
         <View style={styles.btnSmall}>
-          <Feather name="plus" size={32} color={theme.colors.textInverse} />
+          <Feather name="plus" size={40} color={theme.colors.textInverse} />
         </View>
       </TouchableOpacity>
     );
@@ -275,9 +275,9 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
   btnSmall: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: theme.colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -376,8 +376,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     minHeight: 60,
     paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.radius.md,
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
   },
 });

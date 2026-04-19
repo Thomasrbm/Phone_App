@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
@@ -79,7 +81,19 @@ export default function TaskEditScreen() {
     ? format(parseISO(task.day), 'd MMMM', { locale: fr })
     : '';
 
+  const backOnSwipe = () => router.back();
+
+  const swipeBackGesture = Gesture.Pan()
+    .activeOffsetX([-40, 40])
+    .failOffsetY([-25, 25])
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > 100) {
+        runOnJS(backOnSwipe)();
+      }
+    });
+
   return (
+    <GestureDetector gesture={swipeBackGesture}>
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
@@ -178,6 +192,7 @@ export default function TaskEditScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GestureDetector>
   );
 }
 
