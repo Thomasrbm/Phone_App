@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
@@ -246,9 +247,24 @@ export default function TaskEditScreen() {
                 })}
               </Text>
             ) : null}
-            <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-              <Text style={styles.deleteText}>Supprimer la tâche</Text>
-            </TouchableOpacity>
+            <View style={styles.footerActions}>
+              <TouchableOpacity
+                onPress={handleDelete}
+                style={styles.deleteBtn}
+              >
+                <Text style={styles.deleteText}>Supprimer la tâche</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.closeBtn}
+              >
+                <Feather
+                  name="x"
+                  size={22}
+                  color={theme.colors.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -353,10 +369,25 @@ const styles = StyleSheet.create({
     color: theme.colors.done,
     fontWeight: '500',
   },
-  deleteBtn: {
+  footerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
     marginTop: theme.spacing.sm,
+  },
+  deleteBtn: {
+    flex: 1,
     paddingVertical: theme.spacing.md,
     alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+  },
+  closeBtn: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
     borderRadius: theme.radius.md,
