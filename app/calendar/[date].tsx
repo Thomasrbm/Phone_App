@@ -6,11 +6,11 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AddTaskInput from '@/components/AddTaskInput';
 import TaskItem from '@/components/TaskItem';
 import {
