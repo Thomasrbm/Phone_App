@@ -128,9 +128,17 @@ export default function AddTaskInput({ onSubmit }: Props) {
   return (
     <GestureDetector gesture={dragGesture}>
       <Animated.View style={[styles.expanded, animatedStyle]}>
-        <View style={styles.dragHandleArea}>
+        <TouchableOpacity
+          onPress={() => {
+            const mid = (BASE_HEIGHT + MAX_HEIGHT) / 2;
+            const target = height.value < mid ? MAX_HEIGHT : BASE_HEIGHT;
+            height.value = withSpring(target, { damping: 20, stiffness: 180 });
+          }}
+          activeOpacity={0.6}
+          style={styles.dragHandleArea}
+        >
           <View style={styles.dragHandleBar} />
-        </View>
+        </TouchableOpacity>
         <View style={styles.titleRow}>
         <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
           <Feather name="x" size={22} color={theme.colors.textMuted} />
