@@ -1,17 +1,18 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { addMonths, subMonths } from 'date-fns';
-import { useCallback, useState } from 'react';
-import { SafeAreaView, StyleSheet, View } from 'react-native';
-import CalendarMonth from '@/components/CalendarMonth';
-import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
-import { toDayKey } from '@/lib/date';
-import { theme } from '@/lib/theme';
 import {
+  addMonths,
   endOfMonth,
   endOfWeek,
   startOfMonth,
   startOfWeek,
+  subMonths,
 } from 'date-fns';
+import { useCallback, useState } from 'react';
+import { SafeAreaView, StyleSheet } from 'react-native';
+import CalendarMonth from '@/components/CalendarMonth';
+import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
+import { toDayKey } from '@/lib/date';
+import { theme } from '@/lib/theme';
 
 export default function CalendarScreen() {
   const router = useRouter();
@@ -42,15 +43,13 @@ export default function CalendarScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <CalendarMonth
-          month={currentMonth}
-          counts={counts}
-          onDayPress={handleDayPress}
-          onPrevMonth={() => setCurrentMonth((m) => subMonths(m, 1))}
-          onNextMonth={() => setCurrentMonth((m) => addMonths(m, 1))}
-        />
-      </View>
+      <CalendarMonth
+        month={currentMonth}
+        counts={counts}
+        onDayPress={handleDayPress}
+        onPrevMonth={() => setCurrentMonth((m) => subMonths(m, 1))}
+        onNextMonth={() => setCurrentMonth((m) => addMonths(m, 1))}
+      />
     </SafeAreaView>
   );
 }
@@ -59,10 +58,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
   },
 });

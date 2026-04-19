@@ -17,69 +17,106 @@ export default function CalendarDayCell({
   counts,
   onPress,
 }: Props) {
-  const allDone = counts !== undefined && counts.done === counts.total && counts.total > 0;
+  const allDone =
+    counts !== undefined && counts.total > 0 && counts.done === counts.total;
+  const hasPending =
+    counts !== undefined && counts.total > 0 && counts.done < counts.total;
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.cell} activeOpacity={0.6}>
-      <View style={[styles.inner, isToday && styles.todayBg]}>
-        <Text
-          style={[
-            styles.dayNumber,
-            !isCurrentMonth && styles.mutedText,
-            isToday && styles.todayText,
-          ]}
-        >
-          {date.getDate()}
-        </Text>
-        {counts ? (
+    <TouchableOpacity onPress={onPress} style={styles.cell} activeOpacity={0.5}>
+      <View style={styles.header}>
+        <View style={isToday ? styles.todayCircle : null}>
           <Text
             style={[
-              styles.counts,
-              allDone && styles.countsDone,
+              styles.dayNumber,
+              !isCurrentMonth && styles.mutedText,
               isToday && styles.todayText,
+            ]}
+          >
+            {date.getDate()}
+          </Text>
+        </View>
+      </View>
+      {counts ? (
+        <View
+          style={[
+            styles.pill,
+            allDone && styles.pillDone,
+            hasPending && styles.pillPending,
+          ]}
+        >
+          <Text
+            style={[
+              styles.pillText,
+              allDone && styles.pillTextDone,
+              hasPending && styles.pillTextPending,
             ]}
           >
             {counts.done}/{counts.total}
           </Text>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   cell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    padding: 2,
-  },
-  inner: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radius.sm,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.borderSubtle,
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: 6,
   },
-  todayBg: {
-    backgroundColor: theme.colors.today,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
   },
   dayNumber: {
-    fontSize: theme.font.lg,
+    fontSize: theme.font.md,
     color: theme.colors.text,
     fontWeight: '500',
   },
   mutedText: {
-    color: theme.colors.textMuted,
+    color: theme.colors.textSubtle,
+  },
+  todayCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: theme.colors.today,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   todayText: {
     color: theme.colors.textInverse,
+    fontWeight: '700',
   },
-  counts: {
-    fontSize: theme.font.sm,
+  pill: {
+    alignSelf: 'flex-start',
+    marginTop: 'auto',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  pillDone: {
+    backgroundColor: theme.colors.doneSoft,
+  },
+  pillPending: {
+    backgroundColor: theme.colors.pendingSoft,
+  },
+  pillText: {
+    fontSize: theme.font.xs,
     color: theme.colors.textMuted,
-    marginTop: 2,
-  },
-  countsDone: {
-    color: theme.colors.done,
     fontWeight: '600',
+  },
+  pillTextDone: {
+    color: theme.colors.done,
+  },
+  pillTextPending: {
+    color: theme.colors.pending,
   },
 });
