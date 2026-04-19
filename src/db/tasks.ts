@@ -36,6 +36,25 @@ function rowToTask(row: TaskRow): Task {
   };
 }
 
+export type DayCounts = { total: number; done: number };
+
+export async function getTaskCountsInRange(
+  startDay: string,
+  endDay: string
+): Promise<Record<string, DayCounts>> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ day: string; total: number; done: number }>(
+    'SELECT day, COUNT(*) AS total, SUM(done) AS done FROM tasks WHERE day >= ? AND day <= ? GROUP BY day',
+    startDay,
+    endDay
+  );
+  const result: Record<string, DayCounts> = {};
+  for (const r of rows) {
+    result[r.day] = { total: r.total, done: r.done };
+  }
+  return result;
+}
+
 export async function listTasksByDay(day: string): Promise<Task[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<TaskRow>(
