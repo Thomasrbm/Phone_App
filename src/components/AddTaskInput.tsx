@@ -36,6 +36,16 @@ export default function AddTaskInput({ onSubmit }: Props) {
     }
   }, [expanded]);
 
+  // Auto-collapse when keyboard closes (OS back, tap outside, etc.)
+  // Color taps are safe: keyboardShouldPersistTaps='always' on the color
+  // ScrollView keeps the keyboard open.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => {
+      setExpanded(false);
+    });
+    return () => sub.remove();
+  }, []);
+
   const canSubmit = title.trim().length > 0;
 
   const submit = () => {

@@ -43,7 +43,10 @@ export default function DayScreen() {
   const [deletedCount, setDeletedCount] = useState<number>(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const headerHeight = useHeaderHeight();
+
+  const selectMode = selectedIds.size > 0;
 
   const reload = useCallback(
     async (animate = false) => {
@@ -107,12 +110,37 @@ export default function DayScreen() {
     reload(true);
   };
 
-  const handleEditPress = (id: string) => {
+  const handleTaskPress = (id: string) => {
+    if (selectMode) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      return;
+    }
     router.push(`/task/${id}`);
   };
 
+  const handleLongPress = (id: string) => {
+    if (selectMode) return;
+    setSelectedIds(new Set([id]));
+  };
+
+  const exitSelectMode = () => setSelectedIds(new Set());
+
   const handleSwipeDelete = async (id: string) => {
     await softDeleteTask(id);
+    reload(true);
+  };
+
+  const deleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await softDeleteTask(id);
+    }
+    setSelectedIds(new Set());
     reload(true);
   };
 
@@ -123,41 +151,49 @@ export default function DayScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: title.charAt(0).toUpperCase() + title.slice(1),
+          title: selectMode
+            ? `${selectedIds.size} sélectionnée${selectedIds.size > 1 ? 's' : ''}`
+            : title.charAt(0).toUpperCase() + title.slice(1),
           headerBackTitle: 'Mois',
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                onPress={() => setSearchOpen((s) => !s)}
-                style={styles.headerBtn}
-                hitSlop={8}
-              >
-                <Feather
-                  name="search"
-                  size={20}
-                  color={
-                    searchOpen ? theme.colors.accent : theme.colors.text
-                  }
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push(`/trash/${date}`)}
-                style={styles.headerBtn}
-                hitSlop={8}
-              >
-                <Feather
-                  name="trash-2"
-                  size={20}
-                  color={theme.colors.text}
-                />
-                {deletedCount > 0 ? (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{deletedCount}</Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            </View>
-          ),
+          headerLeft: selectMode
+            ? () => (
+                <TouchableOpacity
+                  onPress={exitSelectMode}
+                  hitSlop={8}
+                  style={styles.headerLeftBtn}
+                >
+                  <Text style={styles.cancelLink}>Annuler</Text>
+                </TouchableOpacity>
+              )
+            : undefined,
+          headerRight: () =>
+            selectMode ? null : (
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  onPress={() => setSearchOpen((s) => !s)}
+                  style={styles.headerBtn}
+                  hitSlop={8}
+                >
+                  <Feather
+                    name="search"
+                    size={20}
+                    color={searchOpen ? theme.colors.accent : theme.colors.text}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push(`/trash/${date}`)}
+                  style={styles.headerBtn}
+                  hitSlop={8}
+                >
+                  <Feather name="trash-2" size={20} color={theme.colors.text} />
+                  {deletedCount > 0 ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{deletedCount}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              </View>
+            ),
         }}
       />
       <KeyboardAvoidingView
@@ -165,7 +201,7 @@ export default function DayScreen() {
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
-        {searchOpen ? (
+        {searchOpen && !selectMode ? (
           <View style={styles.searchBar}>
             <Feather
               name="search"
@@ -195,9 +231,12 @@ export default function DayScreen() {
               <TaskItem
                 task={item.task}
                 onToggle={handleToggle}
-                onPress={handleEditPress}
+                onPress={handleTaskPress}
+                onLongPress={handleLongPress}
                 onSwipeAction={handleSwipeDelete}
                 swipe="delete"
+                selectMode={selectMode}
+                selected={selectedIds.has(item.task.id)}
               />
             );
           }}
@@ -217,7 +256,20 @@ export default function DayScreen() {
           }
           keyboardShouldPersistTaps="handled"
         />
-        <AddTaskInput onSubmit={handleAdd} />
+        {selectMode ? (
+          <TouchableOpacity
+            onPress={deleteSelected}
+            style={styles.deleteBar}
+            activeOpacity={0.8}
+          >
+            <Feather name="trash-2" size={18} color={theme.colors.textInverse} />
+            <Text style={styles.deleteBarText}>
+              Supprimer ({selectedIds.size})
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <AddTaskInput onSubmit={handleAdd} />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -243,6 +295,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+  },
+  headerLeftBtn: {
+    paddingHorizontal: theme.spacing.md,
+  },
+  cancelLink: {
+    color: theme.colors.accent,
+    fontSize: theme.font.md,
+    fontWeight: '500',
   },
   badge: {
     position: 'absolute',
@@ -302,5 +362,18 @@ const styles = StyleSheet.create({
     fontSize: theme.font.md,
     color: theme.colors.textMuted,
     marginTop: theme.spacing.sm,
+  },
+  deleteBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e03e3e',
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  deleteBarText: {
+    color: theme.colors.textInverse,
+    fontSize: theme.font.lg,
+    fontWeight: '700',
   },
 });
