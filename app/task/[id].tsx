@@ -84,10 +84,12 @@ export default function TaskEditScreen() {
   const backOnSwipe = () => router.back();
 
   const swipeBackGesture = Gesture.Pan()
-    .activeOffsetX([-40, 40])
-    .failOffsetY([-25, 25])
+    .minDistance(40)
     .onEnd((e) => {
-      if (Math.abs(e.translationX) > 100) {
+      if (
+        Math.abs(e.translationX) > 100 ||
+        Math.abs(e.translationY) > 150
+      ) {
         runOnJS(backOnSwipe)();
       }
     });
@@ -127,20 +129,6 @@ export default function TaskEditScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              onBlur={saveDescription}
-              style={styles.descInput}
-              placeholder="Notes, contexte, détails…"
-              placeholderTextColor={theme.colors.textSubtle}
-              multiline
-              textAlignVertical="top"
-            />
-          </View>
-
-          <View style={styles.section}>
             <Text style={styles.label}>Couleur</Text>
             <View style={styles.colorRow}>
               {TASK_COLORS.map((c) => {
@@ -173,6 +161,20 @@ export default function TaskEditScreen() {
                 );
               })}
             </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              onBlur={saveDescription}
+              style={styles.descInput}
+              placeholder="Notes, contexte, détails…"
+              placeholderTextColor={theme.colors.textSubtle}
+              multiline
+              textAlignVertical="top"
+            />
           </View>
 
           {task?.done && task.doneAt ? (
@@ -230,13 +232,10 @@ const styles = StyleSheet.create({
   descInput: {
     fontSize: theme.font.lg,
     color: theme.colors.text,
-    minHeight: 100,
+    minHeight: 120,
     paddingVertical: theme.spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
   },
   colorRow: {
     flexDirection: 'row',
