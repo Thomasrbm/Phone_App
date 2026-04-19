@@ -10,10 +10,18 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { TASK_COLORS } from '@/lib/colors';
 import { theme } from '@/lib/theme';
 
-const EXPANDED_HEIGHT = 380;
+const BASE_HEIGHT = 380;
+const MAX_HEIGHT = 600;
+const MIN_HEIGHT = 220;
 
 type SubmitParams = {
   title: string;
@@ -33,15 +41,17 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const titleRef = useRef<TextInput>(null);
   const descRef = useRef<TextInput>(null);
 
+  const height = useSharedValue(BASE_HEIGHT);
+  const startHeight = useSharedValue(BASE_HEIGHT);
+
   useEffect(() => {
     if (open) {
+      height.value = BASE_HEIGHT;
       const t = setTimeout(() => titleRef.current?.focus(), 80);
       return () => clearTimeout(t);
     }
-  }, [open]);
+  }, [open, height]);
 
-  // Auto-close on keyboard hide (OS back, tap-outside).
-  // Color taps are protected by keyboardShouldPersistTaps='always'.
   useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidHide', () => {
       setOpen(false);
@@ -71,14 +81,31 @@ export default function AddTaskInput({ onSubmit }: Props) {
     close();
   };
 
-  const cancel = () => {
-    close();
-  };
+  const cancel = () => close();
 
   const pickColor = (c: string | null) => {
     setColor(c);
     titleRef.current?.focus();
   };
+
+  const dragGesture = Gesture.Pan()
+    .onStart(() => {
+      startHeight.value = height.value;
+    })
+    .onUpdate((e) => {
+      const next = startHeight.value - e.translationY;
+      height.value = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, next));
+    })
+    .onEnd(() => {
+      // Snap to base or max depending on midpoint
+      const midpoint = (BASE_HEIGHT + MAX_HEIGHT) / 2;
+      const target = height.value > midpoint ? MAX_HEIGHT : BASE_HEIGHT;
+      height.value = withSpring(target, { damping: 20, stiffness: 180 });
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: height.value,
+  }));
 
   if (!open) {
     return (
@@ -96,7 +123,12 @@ export default function AddTaskInput({ onSubmit }: Props) {
   }
 
   return (
-    <View style={styles.expanded}>
+    <Animated.View style={[styles.expanded, animatedStyle]}>
+      <GestureDetector gesture={dragGesture}>
+        <View style={styles.dragHandleArea}>
+          <View style={styles.dragHandleBar} />
+        </View>
+      </GestureDetector>
       <View style={styles.titleRow}>
         <TouchableOpacity onPress={cancel} style={styles.iconBtn} hitSlop={8}>
           <Feather name="x" size={22} color={theme.colors.textMuted} />
@@ -167,7 +199,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
           />
         </Pressable>
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -196,10 +228,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   expanded: {
-    height: EXPANDED_HEIGHT,
     backgroundColor: theme.colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.border,
+  },
+  dragHandleArea: {
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dragHandleBar: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: theme.colors.border,
   },
   titleRow: {
     flexDirection: 'row',
@@ -278,7 +320,7 @@ const styles = StyleSheet.create({
   descInput: {
     fontSize: theme.font.md,
     color: theme.colors.text,
-    minHeight: 80,
+    minHeight: 120,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.background,
