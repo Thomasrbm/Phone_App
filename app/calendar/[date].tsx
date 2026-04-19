@@ -6,7 +6,6 @@ import { useCallback, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -73,7 +72,7 @@ export default function DayScreen() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
         <FlatList
