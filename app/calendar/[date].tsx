@@ -1,10 +1,12 @@
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCallback, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -25,6 +27,7 @@ import { theme } from '@/lib/theme';
 export default function DayScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const headerHeight = useHeaderHeight();
 
   const reload = useCallback(async () => {
     const data = await listTasksByDay(date);
@@ -70,7 +73,8 @@ export default function DayScreen() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior="padding"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={headerHeight}
       >
         <FlatList
           data={tasks}
@@ -91,6 +95,7 @@ export default function DayScreen() {
               </Text>
             </View>
           }
+          keyboardShouldPersistTaps="handled"
         />
         <AddTaskInput onSubmit={handleAdd} />
       </KeyboardAvoidingView>
