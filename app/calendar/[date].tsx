@@ -5,7 +5,6 @@ import { useCallback, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -61,7 +60,7 @@ export default function DayScreen() {
   const title = format(parseISO(date), 'EEEE d MMMM', { locale: fr });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -71,7 +70,7 @@ export default function DayScreen() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <FlatList
           data={tasks}

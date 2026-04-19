@@ -14,7 +14,8 @@ export const theme = {
     doneSoft: '#e0efe4',
     pending: '#d9730d',
     pendingSoft: '#fbecdd',
-    today: '#e03e3e',
+    today: '#ea580c',
+    todaySoft: '#fff1e6',
   },
   spacing: {
     xs: 4,

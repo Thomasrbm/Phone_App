@@ -1,10 +1,13 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   addMonths,
+  addWeeks,
+  addDays,
   endOfMonth,
   endOfWeek,
-  isSameMonth,
   format,
+  isSameMonth,
+  isSameWeek,
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
@@ -22,30 +25,50 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CalendarMonth from '@/components/CalendarMonth';
+import CalendarWeek from '@/components/CalendarWeek';
+import TodayButton from '@/components/TodayButton';
+import ViewMenu, { type CalendarView } from '@/components/ViewMenu';
 import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
 import { toDayKey } from '@/lib/date';
 import { theme } from '@/lib/theme';
 
-const MONTHS_BEFORE = 12;
-const MONTHS_AFTER = 12;
+const PAGES_BEFORE = 12;
+const PAGES_AFTER = 12;
 const WEEKDAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
 
 export default function CalendarScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const listRef = useRef<FlatList<Date>>(null);
+  const monthListRef = useRef<FlatList<Date>>(null);
+  const weekListRef = useRef<FlatList<Date>>(null);
 
   const today = useMemo(() => new Date(), []);
+
   const months = useMemo(() => {
     const out: Date[] = [];
-    for (let i = -MONTHS_BEFORE; i <= MONTHS_AFTER; i++) {
+    for (let i = -PAGES_BEFORE; i <= PAGES_AFTER; i++) {
       out.push(addMonths(today, i));
     }
     return out;
   }, [today]);
-  const initialIndex = MONTHS_BEFORE;
 
+  const weeks = useMemo(() => {
+    const todayWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const out: Date[] = [];
+    for (let i = -PAGES_BEFORE; i <= PAGES_AFTER; i++) {
+      out.push(addWeeks(todayWeekStart, i));
+    }
+    return out;
+  }, [today]);
+
+  const initialIndex = PAGES_BEFORE;
+
+  const [view, setView] = useState<CalendarView>('month');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState<Date>(today);
+  const [visibleWeek, setVisibleWeek] = useState<Date>(
+    startOfWeek(today, { weekStartsOn: 1 })
+  );
   const [counts, setCounts] = useState<Record<string, DayCounts>>({});
 
   const range = useMemo(() => {
@@ -72,91 +95,186 @@ export default function CalendarScreen() {
     router.push(`/calendar/${toDayKey(date)}`);
   };
 
-  const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleMonthScrollEnd = (
+    e: NativeSyntheticEvent<NativeScrollEvent>
+  ) => {
     const idx = Math.round(e.nativeEvent.contentOffset.x / width);
     const m = months[idx];
     if (m && !isSameMonth(m, visibleMonth)) setVisibleMonth(m);
   };
 
+  const handleWeekScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+    const w = weeks[idx];
+    if (w && !isSameWeek(w, visibleWeek, { weekStartsOn: 1 })) {
+      setVisibleWeek(w);
+    }
+  };
+
   const goToToday = () => {
-    listRef.current?.scrollToIndex({ index: initialIndex, animated: true });
+    if (view === 'month') {
+      monthListRef.current?.scrollToIndex({
+        index: initialIndex,
+        animated: true,
+      });
+    } else {
+      weekListRef.current?.scrollToIndex({
+        index: initialIndex,
+        animated: true,
+      });
+    }
   };
 
   const goToPrev = () => {
-    const idx = months.findIndex((m) => isSameMonth(m, visibleMonth));
-    if (idx > 0)
-      listRef.current?.scrollToIndex({ index: idx - 1, animated: true });
+    if (view === 'month') {
+      const idx = months.findIndex((m) => isSameMonth(m, visibleMonth));
+      if (idx > 0)
+        monthListRef.current?.scrollToIndex({
+          index: idx - 1,
+          animated: true,
+        });
+    } else {
+      const idx = weeks.findIndex((w) =>
+        isSameWeek(w, visibleWeek, { weekStartsOn: 1 })
+      );
+      if (idx > 0)
+        weekListRef.current?.scrollToIndex({ index: idx - 1, animated: true });
+    }
   };
 
   const goToNext = () => {
-    const idx = months.findIndex((m) => isSameMonth(m, visibleMonth));
-    if (idx < months.length - 1)
-      listRef.current?.scrollToIndex({ index: idx + 1, animated: true });
+    if (view === 'month') {
+      const idx = months.findIndex((m) => isSameMonth(m, visibleMonth));
+      if (idx < months.length - 1)
+        monthListRef.current?.scrollToIndex({
+          index: idx + 1,
+          animated: true,
+        });
+    } else {
+      const idx = weeks.findIndex((w) =>
+        isSameWeek(w, visibleWeek, { weekStartsOn: 1 })
+      );
+      if (idx < weeks.length - 1)
+        weekListRef.current?.scrollToIndex({ index: idx + 1, animated: true });
+    }
   };
 
-  const monthLabel = format(visibleMonth, 'MMMM yyyy', { locale: fr });
+  const headerLabel =
+    view === 'month'
+      ? capitalize(format(visibleMonth, 'MMMM yyyy', { locale: fr }))
+      : `${format(visibleWeek, 'd MMM', { locale: fr })} – ${format(
+          addDays(visibleWeek, 6),
+          'd MMM yyyy',
+          { locale: fr }
+        )}`;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.todayRow}>
+      <View style={styles.topRow}>
         <TouchableOpacity
-          onPress={goToToday}
-          style={styles.todayBtn}
-          activeOpacity={0.7}
+          onPress={() => setMenuOpen(true)}
+          style={styles.menuBtn}
+          hitSlop={8}
         >
-          <Text style={styles.todayBtnText}>{today.getDate()}</Text>
+          <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
+
+        <View style={styles.todayCenter}>
+          <TodayButton day={today.getDate()} onPress={goToToday} />
+        </View>
+
+        <View style={styles.menuBtn} />
       </View>
 
       <View style={styles.header}>
         <TouchableOpacity onPress={goToPrev} style={styles.navBtn} hitSlop={8}>
           <Text style={styles.navText}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.monthLabel}>
-          {monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}
-        </Text>
+        <Text style={styles.monthLabel}>{headerLabel}</Text>
         <TouchableOpacity onPress={goToNext} style={styles.navBtn} hitSlop={8}>
           <Text style={styles.navText}>›</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.weekdayRow}>
-        {WEEKDAYS.map((w, i) => (
-          <Text key={i} style={styles.weekdayLabel}>
-            {w}
-          </Text>
-        ))}
-      </View>
-
-      <FlatList
-        ref={listRef}
-        data={months}
-        keyExtractor={(d) => toDayKey(d)}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={initialIndex}
-        getItemLayout={(_, index) => ({
-          length: width,
-          offset: width * index,
-          index,
-        })}
-        windowSize={3}
-        initialNumToRender={1}
-        maxToRenderPerBatch={2}
-        removeClippedSubviews
-        onMomentumScrollEnd={handleScrollEnd}
-        renderItem={({ item }) => (
-          <CalendarMonth
-            month={item}
-            counts={counts}
-            onDayPress={handleDayPress}
-            width={width}
+      {view === 'month' ? (
+        <>
+          <View style={styles.weekdayRow}>
+            {WEEKDAYS.map((w, i) => (
+              <Text key={i} style={styles.weekdayLabel}>
+                {w}
+              </Text>
+            ))}
+          </View>
+          <FlatList
+            ref={monthListRef}
+            data={months}
+            keyExtractor={(d) => `m-${toDayKey(d)}`}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            initialScrollIndex={initialIndex}
+            getItemLayout={(_, index) => ({
+              length: width,
+              offset: width * index,
+              index,
+            })}
+            windowSize={3}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            removeClippedSubviews
+            onMomentumScrollEnd={handleMonthScrollEnd}
+            renderItem={({ item }) => (
+              <CalendarMonth
+                month={item}
+                counts={counts}
+                onDayPress={handleDayPress}
+                width={width}
+              />
+            )}
           />
-        )}
+        </>
+      ) : (
+        <FlatList
+          ref={weekListRef}
+          data={weeks}
+          keyExtractor={(d) => `w-${toDayKey(d)}`}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={initialIndex}
+          getItemLayout={(_, index) => ({
+            length: width,
+            offset: width * index,
+            index,
+          })}
+          windowSize={3}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          removeClippedSubviews
+          onMomentumScrollEnd={handleWeekScrollEnd}
+          renderItem={({ item }) => (
+            <CalendarWeek
+              weekStart={item}
+              counts={counts}
+              onDayPress={handleDayPress}
+              width={width}
+            />
+          )}
+        />
+      )}
+
+      <ViewMenu
+        visible={menuOpen}
+        current={view}
+        onSelect={setView}
+        onClose={() => setMenuOpen(false)}
       />
     </SafeAreaView>
   );
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 const styles = StyleSheet.create({
@@ -164,23 +282,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  todayRow: {
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
   },
-  todayBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1.5,
-    borderColor: theme.colors.today,
+  menuBtn: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  todayBtnText: {
-    color: theme.colors.today,
-    fontSize: theme.font.md,
-    fontWeight: '700',
+  menuIcon: {
+    fontSize: 24,
+    color: theme.colors.text,
+  },
+  todayCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
