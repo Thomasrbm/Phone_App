@@ -5,7 +5,6 @@ import { fr } from 'date-fns/locale';
 import { useCallback, useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -149,10 +148,7 @@ export default function TaskEditScreen() {
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
+        <View style={styles.content}>
           <View style={styles.section}>
             <Text style={styles.label}>Titre</Text>
             <TextInput
@@ -163,6 +159,7 @@ export default function TaskEditScreen() {
               placeholder="Titre de la tâche"
               placeholderTextColor={theme.colors.textSubtle}
               returnKeyType="done"
+              disableFullscreenUI
             />
           </View>
 
@@ -201,7 +198,7 @@ export default function TaskEditScreen() {
             </View>
           </View>
 
-          <View style={styles.section}>
+          <View style={styles.descSection}>
             <Text style={styles.label}>Description</Text>
             <TextInput
               value={description}
@@ -212,24 +209,23 @@ export default function TaskEditScreen() {
               placeholderTextColor={theme.colors.textSubtle}
               multiline
               textAlignVertical="top"
+              disableFullscreenUI
             />
           </View>
 
           {task?.done && task.doneAt ? (
-            <View style={styles.section}>
-              <Text style={styles.label}>Validée</Text>
-              <Text style={styles.doneInfo}>
-                {format(parseISO(task.doneAt), "EEEE d MMMM 'à' HH:mm", {
-                  locale: fr,
-                })}
-              </Text>
-            </View>
+            <Text style={styles.doneInfo}>
+              Validée le{' '}
+              {format(parseISO(task.doneAt), "d MMMM 'à' HH:mm", {
+                locale: fr,
+              })}
+            </Text>
           ) : null}
 
           <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
             <Text style={styles.deleteText}>Supprimer la tâche</Text>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
     </Animated.View>
@@ -246,11 +242,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flex: 1,
     padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl * 2,
   },
   section: {
     marginBottom: theme.spacing.xl,
+  },
+  descSection: {
+    flex: 1,
+    marginBottom: theme.spacing.lg,
   },
   label: {
     fontSize: theme.font.xs,
@@ -269,12 +269,13 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   descInput: {
+    flex: 1,
     fontSize: theme.font.lg,
     color: theme.colors.text,
-    minHeight: 120,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: 0,
     backgroundColor: 'transparent',
+    textAlignVertical: 'top',
   },
   colorRow: {
     flexDirection: 'row',

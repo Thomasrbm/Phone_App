@@ -280,6 +280,7 @@ export default function AddTaskInput({ onSubmit }: Props) {
             style={styles.descInput}
             multiline
             textAlignVertical="top"
+            disableFullscreenUI
           />
         </View>
       </Animated.View>
