@@ -2,7 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -16,11 +16,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { searchTasks, type Task } from '@/db/tasks';
 import { softColorBg } from '@/lib/colors';
-import { theme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
+import type { Theme } from '@/lib/theme';
 
 type Tab = 'active' | 'deleted';
 
 export default function SearchScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const [query, setQuery] = useState('');
@@ -44,6 +46,8 @@ export default function SearchScreen() {
   const handlePress = (task: Task) => {
     router.push(`/task/${task.id}`);
   };
+
+  const styles = useMemo(() => makeStyles(theme), [theme]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -123,10 +127,12 @@ function SearchResultRow({
   task: Task;
   onPress: () => void;
 }) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const dayLabel = format(parseISO(task.day), 'EEEE d MMMM yyyy', {
     locale: fr,
   });
-  const rowBg = softColorBg(task.color);
+  const rowBg = softColorBg(task.color, theme.colors.swipeBlendBase);
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -153,96 +159,98 @@ function SearchResultRow({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
-  searchBar: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  searchInput: {
-    fontSize: theme.font.lg,
-    color: theme.colors.text,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.radius.md,
-  },
-  tabs: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: theme.colors.accent,
-  },
-  tabText: {
-    fontSize: theme.font.md,
-    color: theme.colors.textMuted,
-    fontWeight: '500',
-  },
-  tabTextActive: {
-    color: theme.colors.accent,
-    fontWeight: '700',
-  },
-  resultRow: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-  },
-  resultTitle: {
-    fontSize: theme.font.lg,
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  resultTitleDone: {
-    color: theme.colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
-  resultMeta: {
-    fontSize: theme.font.sm,
-    color: theme.colors.textMuted,
-    marginTop: 2,
-  },
-  resultDesc: {
-    fontSize: theme.font.sm,
-    color: theme.colors.textSubtle,
-    marginTop: 2,
-  },
-  empty: {
-    paddingTop: theme.spacing.xl * 2,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: theme.font.md,
-    color: theme.colors.textMuted,
-  },
-  recentLabel: {
-    fontSize: theme.font.xs,
-    color: theme.colors.textSubtle,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
-  },
-});
+function makeStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    flex: {
+      flex: 1,
+    },
+    searchBar: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    searchInput: {
+      fontSize: theme.font.lg,
+      color: theme.colors.text,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.colors.background,
+      borderRadius: theme.radius.md,
+    },
+    tabs: {
+      flexDirection: 'row',
+      backgroundColor: theme.colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      alignItems: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabActive: {
+      borderBottomColor: theme.colors.accent,
+    },
+    tabText: {
+      fontSize: theme.font.md,
+      color: theme.colors.textMuted,
+      fontWeight: '500',
+    },
+    tabTextActive: {
+      color: theme.colors.accent,
+      fontWeight: '700',
+    },
+    resultRow: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    resultTitle: {
+      fontSize: theme.font.lg,
+      color: theme.colors.text,
+      fontWeight: '500',
+    },
+    resultTitleDone: {
+      color: theme.colors.textMuted,
+      textDecorationLine: 'line-through',
+    },
+    resultMeta: {
+      fontSize: theme.font.sm,
+      color: theme.colors.textMuted,
+      marginTop: 2,
+    },
+    resultDesc: {
+      fontSize: theme.font.sm,
+      color: theme.colors.textSubtle,
+      marginTop: 2,
+    },
+    empty: {
+      paddingTop: theme.spacing.xl * 2,
+      alignItems: 'center',
+    },
+    emptyText: {
+      fontSize: theme.font.md,
+      color: theme.colors.textMuted,
+    },
+    recentLabel: {
+      fontSize: theme.font.xs,
+      color: theme.colors.textSubtle,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: theme.spacing.sm,
+    },
+  });
+}

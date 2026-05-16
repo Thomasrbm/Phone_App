@@ -3,7 +3,7 @@ import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rou
 import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -25,8 +25,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import IconPicker from '@/components/IconPicker';
 import { TASK_COLORS } from '@/lib/colors';
-import { theme } from '@/lib/theme';
+import type { FeatherName } from '@/lib/icons';
+import { useTheme } from '@/lib/themeContext';
 import {
   getTaskById,
   softDeleteTask,
@@ -35,6 +37,7 @@ import {
 } from '@/db/tasks';
 
 export default function TaskEditScreen() {
+  const { theme } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const headerHeight = useHeaderHeight();
@@ -43,6 +46,7 @@ export default function TaskEditScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<string | null>(null);
+  const [icon, setIcon] = useState<FeatherName | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -53,6 +57,7 @@ export default function TaskEditScreen() {
         setTitle(t.title);
         setDescription(t.description ?? '');
         setColor(t.color);
+        setIcon((t.icon as FeatherName | null) ?? null);
       });
       return () => {
         cancelled = true;
@@ -60,14 +65,18 @@ export default function TaskEditScreen() {
     }, [id])
   );
 
-  // Auto-save color the moment it changes
   useEffect(() => {
     if (!task) return;
     if (color === task.color) return;
     updateTask(id, { color });
   }, [color, task, id]);
 
-  // Animate layout on keyboard show/hide for smooth transitions
+  useEffect(() => {
+    if (!task) return;
+    if (icon === task.icon) return;
+    updateTask(id, { icon });
+  }, [icon, task, id]);
+
   useEffect(() => {
     const smooth = () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -147,6 +156,139 @@ export default function TaskEditScreen() {
   const screenAnim = useAnimatedStyle(() => ({
     transform: [{ translateX: tX.value }, { translateY: tY.value }],
   }));
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        animWrap: {
+          flex: 1,
+        },
+        container: {
+          flex: 1,
+          backgroundColor: theme.colors.background,
+        },
+        flex: {
+          flex: 1,
+        },
+        content: {
+          flex: 1,
+          paddingHorizontal: theme.spacing.lg,
+          paddingTop: theme.spacing.lg,
+          paddingBottom: 80,
+        },
+        main: {
+          flex: 1,
+          overflow: 'hidden',
+        },
+        section: {
+          marginBottom: theme.spacing.xl,
+        },
+        descSection: {
+          flex: 1,
+          overflow: 'hidden',
+        },
+        footer: {
+          position: 'absolute',
+          bottom: theme.spacing.md,
+          left: theme.spacing.lg,
+          right: theme.spacing.lg,
+          backgroundColor: theme.colors.background,
+        },
+        label: {
+          fontSize: theme.font.xs,
+          color: theme.colors.textSubtle,
+          fontWeight: '600',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: theme.spacing.sm,
+        },
+        titleInput: {
+          fontSize: theme.font.xl,
+          color: theme.colors.text,
+          fontWeight: '600',
+          paddingVertical: theme.spacing.sm,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.border,
+        },
+        descInput: {
+          flex: 1,
+          flexShrink: 1,
+          fontSize: theme.font.lg,
+          color: theme.colors.text,
+          paddingVertical: theme.spacing.sm,
+          paddingHorizontal: 0,
+          backgroundColor: 'transparent',
+          textAlignVertical: 'top',
+        },
+        colorRow: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: theme.spacing.md,
+        },
+        colorDot: {
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        colorDotNone: {
+          borderWidth: 1.5,
+          borderColor: theme.colors.border,
+          borderStyle: 'dashed',
+        },
+        colorDotSelected: {
+          borderWidth: 3,
+          borderColor: theme.colors.text,
+        },
+        colorCheck: {
+          color: theme.colors.textInverse,
+          fontSize: theme.font.md,
+          fontWeight: '800',
+        },
+        colorCheckNone: {
+          color: theme.colors.text,
+        },
+        doneInfo: {
+          fontSize: theme.font.md,
+          color: theme.colors.done,
+          fontWeight: '500',
+        },
+        deleteBtn: {
+          marginTop: theme.spacing.sm,
+          paddingVertical: theme.spacing.md,
+          alignItems: 'center',
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.border,
+          borderRadius: theme.radius.md,
+        },
+        headerCloseBtn: {
+          paddingHorizontal: theme.spacing.md,
+        },
+        leftEdge: {
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 24,
+          zIndex: 10,
+        },
+        rightEdge: {
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 24,
+          zIndex: 10,
+        },
+        deleteText: {
+          color: theme.colors.today,
+          fontSize: theme.font.md,
+          fontWeight: '600',
+        },
+      }),
+    [theme]
+  );
 
   return (
     <GestureDetector gesture={swipeBackGesture}>
@@ -228,6 +370,15 @@ export default function TaskEditScreen() {
               </View>
             </View>
 
+            <View style={styles.section}>
+              <Text style={styles.label}>Icône</Text>
+              <IconPicker
+                value={icon}
+                onChange={setIcon}
+                color={color ?? theme.colors.text}
+              />
+            </View>
+
             <View style={styles.descSection}>
               <Text style={styles.label}>Description</Text>
               <TextInput
@@ -259,8 +410,6 @@ export default function TaskEditScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
-      {/* Dedicated edge zones above everything so horizontal swipe
-          always works (even over the description TextInput). */}
       <GestureDetector gesture={swipeBackGesture}>
         <View style={styles.leftEdge} />
       </GestureDetector>
@@ -272,132 +421,3 @@ export default function TaskEditScreen() {
     </GestureDetector>
   );
 }
-
-const styles = StyleSheet.create({
-  animWrap: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  flex: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: 80,
-  },
-  main: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  section: {
-    marginBottom: theme.spacing.xl,
-  },
-  descSection: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: theme.spacing.md,
-    left: theme.spacing.lg,
-    right: theme.spacing.lg,
-    backgroundColor: theme.colors.background,
-  },
-  label: {
-    fontSize: theme.font.xs,
-    color: theme.colors.textSubtle,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: theme.spacing.sm,
-  },
-  titleInput: {
-    fontSize: theme.font.xl,
-    color: theme.colors.text,
-    fontWeight: '600',
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-  },
-  descInput: {
-    flex: 1,
-    flexShrink: 1,
-    fontSize: theme.font.lg,
-    color: theme.colors.text,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: 0,
-    backgroundColor: 'transparent',
-    textAlignVertical: 'top',
-  },
-  colorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-  },
-  colorDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorDotNone: {
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderStyle: 'dashed',
-  },
-  colorDotSelected: {
-    borderWidth: 3,
-    borderColor: theme.colors.text,
-  },
-  colorCheck: {
-    color: theme.colors.textInverse,
-    fontSize: theme.font.md,
-    fontWeight: '800',
-  },
-  colorCheckNone: {
-    color: theme.colors.text,
-  },
-  doneInfo: {
-    fontSize: theme.font.md,
-    color: theme.colors.done,
-    fontWeight: '500',
-  },
-  deleteBtn: {
-    marginTop: theme.spacing.sm,
-    paddingVertical: theme.spacing.md,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radius.md,
-  },
-  headerCloseBtn: {
-    paddingHorizontal: theme.spacing.md,
-  },
-  leftEdge: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 24,
-    zIndex: 10,
-  },
-  rightEdge: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 24,
-    zIndex: 10,
-  },
-  deleteText: {
-    color: theme.colors.today,
-    fontSize: theme.font.md,
-    fontWeight: '600',
-  },
-});
