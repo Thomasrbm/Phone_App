@@ -1,4 +1,40 @@
-export const theme = {
+export type ThemeColors = {
+  background: string;
+  surface: string;
+  surfaceAlt: string;
+  text: string;
+  textMuted: string;
+  textSubtle: string;
+  textInverse: string;
+  border: string;
+  borderSubtle: string;
+  accent: string;
+  done: string;
+  doneSoft: string;
+  pending: string;
+  pendingSoft: string;
+  today: string;
+  todaySoft: string;
+  routine: string;
+  routineSoft: string;
+  selectionBg: string;
+  swipeBlendBase: string;
+};
+
+export type Theme = {
+  scheme: 'light' | 'dark';
+  colors: ThemeColors;
+  spacing: { xs: number; sm: number; md: number; lg: number; xl: number };
+  radius: { sm: number; md: number; lg: number; pill: number };
+  font: { xs: number; sm: number; md: number; lg: number; xl: number };
+};
+
+const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 };
+const radius = { sm: 4, md: 8, lg: 14, pill: 999 };
+const font = { xs: 10, sm: 12, md: 14, lg: 16, xl: 22 };
+
+export const lightTheme: Theme = {
+  scheme: 'light',
   colors: {
     background: '#ffffff',
     surface: '#ffffff',
@@ -16,25 +52,46 @@ export const theme = {
     pendingSoft: '#fbecdd',
     today: '#ea580c',
     todaySoft: '#fff1e6',
+    routine: '#0d8a3f',
+    routineSoft: '#e3f1e7',
+    selectionBg: '#dde9f1',
+    swipeBlendBase: '#ffffff',
   },
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 24,
+  spacing,
+  radius,
+  font,
+};
+
+export const darkTheme: Theme = {
+  scheme: 'dark',
+  colors: {
+    background: '#191919',
+    surface: '#202020',
+    surfaceAlt: '#2a2a2a',
+    text: '#e8e6e3',
+    textMuted: '#9b9a97',
+    textSubtle: '#6f6e6b',
+    textInverse: '#ffffff',
+    border: '#2f2f2f',
+    borderSubtle: '#252525',
+    accent: '#4a9eff',
+    done: '#4eb1a0',
+    doneSoft: '#1d3a35',
+    pending: '#e8a04c',
+    pendingSoft: '#3a2f1d',
+    today: '#ff7a3d',
+    todaySoft: '#3a2218',
+    routine: '#4ade80',
+    routineSoft: '#1a3a24',
+    selectionBg: '#2a3a4a',
+    swipeBlendBase: '#202020',
   },
-  radius: {
-    sm: 4,
-    md: 8,
-    lg: 14,
-    pill: 999,
-  },
-  font: {
-    xs: 10,
-    sm: 12,
-    md: 14,
-    lg: 16,
-    xl: 22,
-  },
-} as const;
+  spacing,
+  radius,
+  font,
+};
+
+// Kept for legacy non-React consumers (e.g. babel-resolved imports
+// in modules that don't have access to the hook). Always returns the
+// light palette — components must use `useTheme()` for reactivity.
+export const theme = lightTheme;
