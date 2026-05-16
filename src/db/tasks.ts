@@ -7,6 +7,7 @@ export type Task = {
   title: string;
   description: string | null;
   color: string | null;
+  icon: string | null;
   done: boolean;
   doneAt: string | null;
   deletedAt: string | null;
@@ -20,6 +21,7 @@ type TaskRow = {
   title: string;
   description: string | null;
   color: string | null;
+  icon: string | null;
   done: number;
   done_at: string | null;
   deleted_at: string | null;
@@ -34,6 +36,7 @@ function rowToTask(row: TaskRow): Task {
     title: row.title,
     description: row.description,
     color: row.color,
+    icon: row.icon,
     done: row.done === 1,
     doneAt: row.done_at,
     deletedAt: row.deleted_at,
@@ -119,19 +122,22 @@ export async function createTask(params: {
   title: string;
   description?: string | null;
   color?: string | null;
+  icon?: string | null;
 }): Promise<Task> {
   const db = await getDatabase();
   const now = new Date().toISOString();
   const id = uuidv4();
   const description = params.description ?? null;
   const color = params.color ?? null;
+  const icon = params.icon ?? null;
   await db.runAsync(
-    'INSERT INTO tasks (id, day, title, description, color, done, done_at, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)',
+    'INSERT INTO tasks (id, day, title, description, color, icon, done, done_at, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)',
     id,
     params.day,
     params.title,
     description,
     color,
+    icon,
     now,
     now
   );
@@ -141,6 +147,7 @@ export async function createTask(params: {
     title: params.title,
     description,
     color,
+    icon,
     done: false,
     doneAt: null,
     deletedAt: null,
@@ -155,6 +162,7 @@ export async function updateTask(
     title?: string;
     description?: string | null;
     color?: string | null;
+    icon?: string | null;
   }
 ): Promise<void> {
   const sets: string[] = [];
@@ -170,6 +178,10 @@ export async function updateTask(
   if (fields.color !== undefined) {
     sets.push('color = ?');
     vals.push(fields.color);
+  }
+  if (fields.icon !== undefined) {
+    sets.push('icon = ?');
+    vals.push(fields.icon);
   }
   if (sets.length === 0) return;
   const db = await getDatabase();
