@@ -86,11 +86,17 @@ type ListItem =
     }
   | { type: 'task'; key: string; task: Task };
 
-// Fixed window of dates anchored on the initial URL date. We don't
-// re-shuffle the children on each swipe — the native pager scrolls
-// within this list. ±30 days is plenty for typical navigation; beyond
-// that the user can jump via /calendar.
+// Fixed window of dates anchored on the initial URL date. The native
+// pager scrolls within this list, but only the pages near the active
+// index actually mount a <DayContent> (and therefore fire SQL fetches).
+// ±30 days is plenty for typical navigation; beyond that the user can
+// jump via /calendar.
 const PAGES_AROUND = 30;
+// Lazy-mount radius. Only DayContents within ±RENDER_HALF of the
+// active index are materialised — the rest stay as cheap empty Views.
+// 2 = current + 2 neighbours each side, so a swipe lands on an already
+// mounted page with data preloaded.
+const RENDER_HALF = 2;
 
 export default function DayScreen() {
   const { theme } = useTheme();
@@ -98,9 +104,6 @@ export default function DayScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const pagerRef = useRef<PagerView>(null);
-  // True when we just called setParams ourselves; the URL-change effect
-  // below skips re-syncing the pager in that case (the pager is already
-  // on the right page — it's what triggered the URL change).
   const isInternalNav = useRef(false);
 
   const [windowDates] = useState<string[]>(() => {
@@ -117,24 +120,24 @@ export default function DayScreen() {
     return i >= 0 ? i : PAGES_AROUND;
   }, [windowDates, date]);
 
-  // External URL change (e.g. tap from /calendar to a far-away day):
-  // imperatively jump the pager to the matching page. Swipe-driven
-  // commits short-circuit via isInternalNav so we don't fight the
-  // native pager.
+  const [activeIdx, setActiveIdx] = useState(initialIndex);
+
   useEffect(() => {
     if (isInternalNav.current) {
       isInternalNav.current = false;
       return;
     }
     const i = windowDates.indexOf(date);
-    if (i >= 0) pagerRef.current?.setPage(i);
-    // If the URL date is outside the window we don't rebuild yet —
-    // typical user nav stays within ±30 days. Acceptable v1 limit.
+    if (i >= 0) {
+      pagerRef.current?.setPage(i);
+      setActiveIdx(i);
+    }
   }, [date, windowDates]);
 
   const onPageSelected = useCallback(
     (e: PagerViewOnPageSelectedEvent) => {
       const idx = e.nativeEvent.position;
+      setActiveIdx(idx);
       const newDate = windowDates[idx];
       if (newDate && newDate !== date) {
         isInternalNav.current = true;
@@ -156,16 +159,14 @@ export default function DayScreen() {
         ref={pagerRef}
         style={{ flex: 1 }}
         initialPage={initialIndex}
-        // Keep ±2 days alive in memory around the visible page (Android
-        // only). The native pager destroys/recreates outer pages as
-        // needed, so memory stays bounded even with a wide window.
         offscreenPageLimit={2}
         onPageSelected={onPageSelected}
       >
-        {windowDates.map((d) => (
-          // PagerView requires direct <View> children, one per page.
+        {windowDates.map((d, i) => (
           <View key={d} collapsable={false} style={{ flex: 1 }}>
-            <DayContent date={d} width={width} />
+            {Math.abs(i - activeIdx) <= RENDER_HALF ? (
+              <DayContent date={d} width={width} />
+            ) : null}
           </View>
         ))}
       </PagerView>
