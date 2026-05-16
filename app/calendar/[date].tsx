@@ -8,9 +8,9 @@ import {
 import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
+  memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -26,14 +26,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import PagerView, {
+  type PagerViewOnPageSelectedEvent,
+} from 'react-native-pager-view';
 import Animated, {
   Easing,
   LinearTransition,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -86,124 +86,106 @@ type ListItem =
     }
   | { type: 'task'; key: string; task: Task };
 
-const SWIPE_COMMIT_PX = 100;
-// Pre-render ±2 days around the centre so the page that slides into view
-// after a commit is already mounted with its data — eliminates the empty
-// "fresh mount" flash you'd see with only prev/current/next rendered.
-const PAGE_HALF = 2;
+// Fixed window of dates anchored on the initial URL date. We don't
+// re-shuffle the children on each swipe — the native pager scrolls
+// within this list. ±30 days is plenty for typical navigation; beyond
+// that the user can jump via /calendar.
+const PAGES_AROUND = 30;
 
 export default function DayScreen() {
   const { theme } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-
-  const tx = useSharedValue(0);
+  const pagerRef = useRef<PagerView>(null);
+  // True when we just called setParams ourselves; the URL-change effect
+  // below skips re-syncing the pager in that case (the pager is already
+  // on the right page — it's what triggered the URL change).
   const isInternalNav = useRef(false);
 
-  const surroundingDates = useMemo(() => {
+  const [windowDates] = useState<string[]>(() => {
     const base = parseISO(date);
     const out: string[] = [];
-    for (let i = -PAGE_HALF; i <= PAGE_HALF; i++) {
+    for (let i = -PAGES_AROUND; i <= PAGES_AROUND; i++) {
       out.push(toDayKey(addDays(base, i)));
     }
     return out;
-  }, [date]);
+  });
 
-  const prevDate = surroundingDates[PAGE_HALF - 1];
-  const nextDate = surroundingDates[PAGE_HALF + 1];
+  const initialIndex = useMemo(() => {
+    const i = windowDates.indexOf(date);
+    return i >= 0 ? i : PAGES_AROUND;
+  }, [windowDates, date]);
 
-  const goToDate = useCallback(
-    (newDate: string) => {
-      isInternalNav.current = true;
-      router.setParams({ date: newDate });
+  // External URL change (e.g. tap from /calendar to a far-away day):
+  // imperatively jump the pager to the matching page. Swipe-driven
+  // commits short-circuit via isInternalNav so we don't fight the
+  // native pager.
+  useEffect(() => {
+    if (isInternalNav.current) {
+      isInternalNav.current = false;
+      return;
+    }
+    const i = windowDates.indexOf(date);
+    if (i >= 0) pagerRef.current?.setPage(i);
+    // If the URL date is outside the window we don't rebuild yet —
+    // typical user nav stays within ±30 days. Acceptable v1 limit.
+  }, [date, windowDates]);
+
+  const onPageSelected = useCallback(
+    (e: PagerViewOnPageSelectedEvent) => {
+      const idx = e.nativeEvent.position;
+      const newDate = windowDates[idx];
+      if (newDate && newDate !== date) {
+        isInternalNav.current = true;
+        router.setParams({ date: newDate });
+      }
     },
-    [router]
+    [windowDates, date, router]
   );
-
-  // Reset translation BEFORE the next paint when the URL date changes,
-  // so the new "center" page lines up under the viewport with no
-  // flashed frame of the wrong content (running this in useEffect lets
-  // a frame render at the old translation under the new page lineup).
-  useLayoutEffect(() => {
-    tx.value = 0;
-    isInternalNav.current = false;
-  }, [date, tx]);
-
-  // Custom pan instead of a FlatList pager: a FlatList paginated outer
-  // eats horizontal touches that should reach inner pagers (routine
-  // groups) and even short taps on AddTaskInput. With Gesture.Pan we
-  // require explicit horizontal commitment (activeOffsetX > 25 px) and
-  // fail on strong vertical drift so the inner tasks scroll keeps
-  // working. Inner native scrollables (routine FlatList paginated)
-  // capture their own gestures first when the touch starts inside them.
-  const dayPan = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetX([-25, 25])
-        .failOffsetY([-20, 20])
-        .onUpdate((e) => {
-          'worklet';
-          tx.value = e.translationX;
-        })
-        .onEnd((e) => {
-          'worklet';
-          if (e.translationX < -SWIPE_COMMIT_PX) {
-            tx.value = withTiming(-width, { duration: 200 }, (done) => {
-              if (done) runOnJS(goToDate)(nextDate);
-            });
-          } else if (e.translationX > SWIPE_COMMIT_PX) {
-            tx.value = withTiming(width, { duration: 200 }, (done) => {
-              if (done) runOnJS(goToDate)(prevDate);
-            });
-          } else {
-            tx.value = withSpring(0, { damping: 22, stiffness: 220 });
-          }
-        }),
-    [tx, width, prevDate, nextDate, goToDate]
-  );
-
-  const pagesStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: tx.value }],
-  }));
 
   return (
     <View
       style={{
         flex: 1,
-        overflow: 'hidden',
         backgroundColor: theme.colors.background,
       }}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <GestureDetector gesture={dayPan}>
-        <Animated.View
-          style={[
-            {
-              flex: 1,
-              flexDirection: 'row',
-              width: width * surroundingDates.length,
-              marginLeft: -width * PAGE_HALF,
-            },
-            pagesStyle,
-          ]}
-        >
-          {/* key={date} so React reconciles by date, not by position. As
-              the centre date changes, the side pages (±2 days) keep
-              their instances and data; only the new outermost page is
-              freshly mounted. The previously-visible neighbour is
-              already loaded, so the 1-frame transitional flash shows
-              real content, not an empty skeleton. */}
-          {surroundingDates.map((d) => (
-            <DayContent key={d} date={d} width={width} />
-          ))}
-        </Animated.View>
-      </GestureDetector>
+      <PagerView
+        ref={pagerRef}
+        style={{ flex: 1 }}
+        initialPage={initialIndex}
+        // Keep ±2 days alive in memory around the visible page (Android
+        // only). The native pager destroys/recreates outer pages as
+        // needed, so memory stays bounded even with a wide window.
+        offscreenPageLimit={2}
+        onPageSelected={onPageSelected}
+      >
+        {windowDates.map((d) => (
+          // PagerView requires direct <View> children, one per page.
+          <View key={d} collapsable={false} style={{ flex: 1 }}>
+            <DayContent date={d} width={width} />
+          </View>
+        ))}
+      </PagerView>
     </View>
   );
 }
 
-function DayContent({ date, width }: { date: string; width: number }) {
+// memo: every setParams re-renders DayScreen, which by default would
+// re-render all 5 DayContents. With key={date} the props are stable
+// per instance (`date` matches key, `width` is constant on a session),
+// so the memo short-circuits the entire subtree. Less work during the
+// animation = fewer dropped frames = less perceived flicker on the
+// elements that differ between pages (trash badge, date title, etc.).
+const DayContent = memo(function DayContent({
+  date,
+  width,
+}: {
+  date: string;
+  width: number;
+}) {
   const { theme } = useTheme();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -1016,4 +998,4 @@ function DayContent({ date, width }: { date: string; width: number }) {
       </SafeAreaView>
     </View>
   );
-}
+});
