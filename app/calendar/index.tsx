@@ -27,17 +27,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CalendarMonth from '@/components/CalendarMonth';
 import CalendarWeek from '@/components/CalendarWeek';
+import DragHandle from '@/components/DragHandle';
 import TodayButton from '@/components/TodayButton';
 import ViewMenu, { type CalendarView } from '@/components/ViewMenu';
 import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
 import { toDayKey } from '@/lib/date';
-import { theme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
 
 const PAGES_BEFORE = 12;
 const PAGES_AFTER = 12;
 const WEEKDAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
 
 export default function CalendarScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const monthListRef = useRef<FlatList<Date>>(null);
@@ -169,28 +171,131 @@ export default function CalendarScreen() {
           { locale: fr }
         )}`;
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.topRow}>
-        <TouchableOpacity
-          onPress={() => setMenuOpen(true)}
-          style={styles.menuBtn}
-          hitSlop={8}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: theme.colors.background,
+        },
+        topRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: theme.spacing.md,
+          paddingVertical: theme.spacing.sm,
+        },
+        leftActions: {
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+        },
+        menuBtn: {
+          width: 40,
+          height: 40,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        menuIcon: {
+          fontSize: 24,
+          color: theme.colors.text,
+        },
+        todayCenter: {
+          flex: 1,
+          alignItems: 'center',
+        },
+        rightActions: {
+          flex: 1,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+        },
+        header: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: theme.spacing.lg,
+          paddingVertical: theme.spacing.sm,
+        },
+        navBtn: {
+          width: 36,
+          height: 36,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        navText: {
+          fontSize: 26,
+          color: theme.colors.textMuted,
+          lineHeight: 28,
+        },
+        monthLabel: {
+          fontSize: theme.font.xl,
+          fontWeight: '700',
+          color: theme.colors.text,
+        },
+        weekdayRow: {
+          flexDirection: 'row',
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.border,
+        },
+        weekdayLabel: {
+          flex: 1,
+          textAlign: 'center',
+          fontSize: theme.font.xs,
+          color: theme.colors.textSubtle,
+          fontWeight: '600',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          paddingVertical: theme.spacing.sm,
+        },
+      }),
+    [theme]
+  );
 
-        <View style={styles.todayCenter}>
-          <TodayButton day={today.getDate()} onPress={goToToday} />
+  const closeToHub = useCallback(() => {
+    // Always land on TODAY's real date — recompute at trigger time so
+    // we don't pin to a stale `today` captured at mount.
+    router.replace(`/calendar/${toDayKey(new Date())}`);
+  }, [router]);
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.topRow}>
+        <View style={styles.leftActions}>
+          <TouchableOpacity
+            onPress={() => setMenuOpen(true)}
+            style={styles.menuBtn}
+            hitSlop={8}
+          >
+            <Text style={styles.menuIcon}>☰</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.push('/search')}
-          style={styles.menuBtn}
-          hitSlop={8}
-        >
-          <Feather name="search" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
+        <View style={styles.todayCenter}>
+          <TodayButton
+            day={today.getDate()}
+            onPress={goToToday}
+            onLongPress={closeToHub}
+          />
+        </View>
+
+        <View style={styles.rightActions}>
+          <TouchableOpacity
+            onPress={() => router.push('/search')}
+            style={styles.menuBtn}
+            hitSlop={8}
+          >
+            <Feather name="search" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push('/settings')}
+            style={styles.menuBtn}
+            hitSlop={8}
+          >
+            <Feather name="settings" size={22} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.header}>
@@ -275,7 +380,10 @@ export default function CalendarScreen() {
         current={view}
         onSelect={setView}
         onClose={() => setMenuOpen(false)}
+        onOpenSettings={() => router.push('/settings')}
       />
+
+      <DragHandle direction="up" onTrigger={closeToHub} label="Aujourd'hui" />
     </SafeAreaView>
   );
 }
@@ -283,69 +391,3 @@ export default function CalendarScreen() {
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-  },
-  menuBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIcon: {
-    fontSize: 24,
-    color: theme.colors.text,
-  },
-  todayCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-  },
-  navBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navText: {
-    fontSize: 26,
-    color: theme.colors.textMuted,
-    lineHeight: 28,
-  },
-  monthLabel: {
-    fontSize: theme.font.xl,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  weekdayRow: {
-    flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-  },
-  weekdayLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.font.xs,
-    color: theme.colors.textSubtle,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingVertical: theme.spacing.sm,
-  },
-});

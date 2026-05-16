@@ -7,19 +7,21 @@ import {
 } from 'expo-router';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DragHandle from '@/components/DragHandle';
 import TaskItem from '@/components/TaskItem';
 import {
   listDeletedTasksByDay,
   restoreTask,
   type Task,
 } from '@/db/tasks';
-import { theme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
 
 export default function TrashScreen() {
+  const { theme } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -79,6 +81,65 @@ export default function TrashScreen() {
   const title = format(parseISO(date), 'EEEE d MMMM', { locale: fr });
   const allSelected =
     selectMode && tasks.length > 0 && tasks.every((t) => selectedIds.has(t.id));
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: theme.colors.background,
+        },
+        headerLeftBtn: {
+          paddingHorizontal: theme.spacing.md,
+        },
+        headerRightBtn: {
+          paddingHorizontal: theme.spacing.md,
+        },
+        cancelLink: {
+          color: theme.colors.accent,
+          fontSize: theme.font.md,
+          fontWeight: '500',
+        },
+        selectAllLink: {
+          color: '#6940a5',
+          fontSize: theme.font.sm,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: 0.3,
+        },
+        empty: {
+          paddingTop: theme.spacing.xl * 2,
+          alignItems: 'center',
+          paddingHorizontal: theme.spacing.xl,
+        },
+        emptyText: {
+          fontSize: theme.font.lg,
+          color: theme.colors.textMuted,
+          marginTop: theme.spacing.lg,
+          fontWeight: '600',
+        },
+        emptyHint: {
+          fontSize: theme.font.md,
+          color: theme.colors.textSubtle,
+          marginTop: theme.spacing.sm,
+          textAlign: 'center',
+        },
+        restoreBar: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#f59e0b',
+          paddingVertical: theme.spacing.md,
+          gap: theme.spacing.sm,
+        },
+        restoreBarText: {
+          color: theme.colors.textInverse,
+          fontSize: theme.font.lg,
+          fontWeight: '700',
+        },
+      }),
+    [theme]
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -162,61 +223,13 @@ export default function TrashScreen() {
           </Text>
         </TouchableOpacity>
       ) : null}
+      {!selectMode ? (
+        <DragHandle
+          direction="up"
+          onTrigger={() => router.back()}
+          label="Retour"
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  headerLeftBtn: {
-    paddingHorizontal: theme.spacing.md,
-  },
-  headerRightBtn: {
-    paddingHorizontal: theme.spacing.md,
-  },
-  cancelLink: {
-    color: theme.colors.accent,
-    fontSize: theme.font.md,
-    fontWeight: '500',
-  },
-  selectAllLink: {
-    color: '#6940a5',
-    fontSize: theme.font.sm,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  empty: {
-    paddingTop: theme.spacing.xl * 2,
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.xl,
-  },
-  emptyText: {
-    fontSize: theme.font.lg,
-    color: theme.colors.textMuted,
-    marginTop: theme.spacing.lg,
-    fontWeight: '600',
-  },
-  emptyHint: {
-    fontSize: theme.font.md,
-    color: theme.colors.textSubtle,
-    marginTop: theme.spacing.sm,
-    textAlign: 'center',
-  },
-  restoreBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f59e0b',
-    paddingVertical: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  restoreBarText: {
-    color: theme.colors.textInverse,
-    fontSize: theme.font.lg,
-    fontWeight: '700',
-  },
-});

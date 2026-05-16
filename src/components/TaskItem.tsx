@@ -1,13 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   RectButton,
   Swipeable,
 } from 'react-native-gesture-handler';
 import { softColorBg } from '@/lib/colors';
-import { theme } from '@/lib/theme';
+import type { FeatherName } from '@/lib/icons';
+import { useTheme } from '@/lib/themeContext';
 import type { Task } from '@/db/tasks';
 
 export type SwipeAction = 'delete' | 'restore' | 'none';
@@ -35,6 +36,7 @@ export default function TaskItem({
   selectMode = false,
   selected = false,
 }: Props) {
+  const { theme } = useTheme();
   const swipeableRef = useRef<Swipeable>(null);
 
   const subtitle =
@@ -44,7 +46,92 @@ export default function TaskItem({
 
   const hasColor = task.color !== null;
   const tickColor = task.color ?? theme.colors.textMuted;
-  const rowBg = softColorBg(task.color);
+  const rowBg = softColorBg(task.color, theme.colors.swipeBlendBase);
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        row: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: theme.spacing.lg,
+          height: 64,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.border,
+          backgroundColor: theme.colors.surface,
+        },
+        rowDone: {
+          opacity: 0.55,
+        },
+        rowSelected: {
+          backgroundColor: theme.colors.selectionBg,
+        },
+        checkbox: {
+          marginRight: theme.spacing.md,
+        },
+        box: {
+          width: 24,
+          height: 24,
+          borderRadius: theme.radius.sm,
+          borderWidth: 1.5,
+          borderColor: theme.colors.textMuted,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        selectIndicator: {
+          marginRight: theme.spacing.md,
+        },
+        selectCircle: {
+          width: 24,
+          height: 24,
+          borderRadius: 12,
+          borderWidth: 1.5,
+          borderColor: theme.colors.textMuted,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        selectCircleOn: {
+          backgroundColor: theme.colors.accent,
+          borderColor: theme.colors.accent,
+        },
+        iconBox: {
+          width: 24,
+          height: 24,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: theme.spacing.sm,
+        },
+        titleWrap: {
+          flex: 1,
+          justifyContent: 'center',
+        },
+        title: {
+          fontSize: theme.font.lg,
+          color: theme.colors.text,
+        },
+        titleDone: {
+          color: theme.colors.textMuted,
+          textDecorationLine: 'line-through',
+        },
+        subtitle: {
+          fontSize: theme.font.sm,
+          color: theme.colors.textMuted,
+          marginTop: 2,
+        },
+        action: {
+          width: 72,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        actionDelete: {
+          backgroundColor: '#e03e3e',
+        },
+        actionRestore: {
+          backgroundColor: '#f59e0b',
+        },
+      }),
+    [theme]
+  );
 
   const renderRightActions = () => {
     if (swipe === 'delete') {
@@ -134,6 +221,16 @@ export default function TaskItem({
         </TouchableOpacity>
       )}
 
+      {task.icon ? (
+        <View style={styles.iconBox}>
+          <Feather
+            name={task.icon as FeatherName}
+            size={18}
+            color={task.color ?? theme.colors.textMuted}
+          />
+        </View>
+      ) : null}
+
       <TouchableOpacity
         onPress={() => onPress(task.id)}
         onLongPress={onLongPress ? () => onLongPress(task.id) : undefined}
@@ -156,7 +253,6 @@ export default function TaskItem({
     </View>
   );
 
-  // Disable swipe in select mode (user is selecting, not deleting individually)
   if (swipe === 'none' || selectMode) return row;
 
   return (
@@ -171,77 +267,3 @@ export default function TaskItem({
     </Swipeable>
   );
 }
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    height: 64,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-  },
-  rowDone: {
-    opacity: 0.55,
-  },
-  rowSelected: {
-    backgroundColor: '#dde9f1',
-  },
-  checkbox: {
-    marginRight: theme.spacing.md,
-  },
-  box: {
-    width: 24,
-    height: 24,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1.5,
-    borderColor: theme.colors.textMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectIndicator: {
-    marginRight: theme.spacing.md,
-  },
-  selectCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: theme.colors.textMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectCircleOn: {
-    backgroundColor: theme.colors.accent,
-    borderColor: theme.colors.accent,
-  },
-  titleWrap: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: theme.font.lg,
-    color: theme.colors.text,
-  },
-  titleDone: {
-    color: theme.colors.textMuted,
-    textDecorationLine: 'line-through',
-  },
-  subtitle: {
-    fontSize: theme.font.sm,
-    color: theme.colors.textMuted,
-    marginTop: 2,
-  },
-  action: {
-    width: 72,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionDelete: {
-    backgroundColor: '#e03e3e',
-  },
-  actionRestore: {
-    backgroundColor: '#f59e0b',
-  },
-});

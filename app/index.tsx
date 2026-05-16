@@ -1,5 +1,7 @@
 import { Redirect } from 'expo-router';
+import { toDayKey } from '@/lib/date';
 
 export default function Index() {
-  return <Redirect href="/calendar" />;
+  const today = toDayKey(new Date());
+  return <Redirect href={`/calendar/${today}`} />;
 }

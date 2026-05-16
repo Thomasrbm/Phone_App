@@ -7,8 +7,9 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { theme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
 import type { DayCounts } from '@/db/tasks';
 import { toDayKey } from '@/lib/date';
 import CalendarDayCell from './CalendarDayCell';
@@ -26,6 +27,7 @@ export default function CalendarMonth({
   onDayPress,
   width,
 }: Props) {
+  const { theme } = useTheme();
   const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
   const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
@@ -34,6 +36,23 @@ export default function CalendarMonth({
   for (let i = 0; i < days.length; i += 7) {
     rows.push(days.slice(i, i + 7));
   }
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        grid: {
+          flex: 1,
+        },
+        row: {
+          flex: 1,
+          flexDirection: 'row',
+        },
+        currentWeekRow: {
+          backgroundColor: theme.colors.surfaceAlt,
+        },
+      }),
+    [theme]
+  );
 
   return (
     <View style={[styles.grid, { width }]}>
@@ -63,16 +82,3 @@ export default function CalendarMonth({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  grid: {
-    flex: 1,
-  },
-  row: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  currentWeekRow: {
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-});

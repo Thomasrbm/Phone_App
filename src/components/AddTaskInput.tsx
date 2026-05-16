@@ -18,7 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { TASK_COLORS } from '@/lib/colors';
-import { theme } from '@/lib/theme';
+import { useTheme } from '@/lib/themeContext';
 
 const BASE_HEIGHT = 380;
 const MID_HEIGHT = 540;
@@ -36,6 +36,7 @@ type Props = {
 };
 
 export default function AddTaskInput({ onSubmit }: Props) {
+  const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -101,8 +102,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
   const pickColor = (c: string | null) => {
     setColor(c);
     titleRef.current?.focus();
-    // Tapping a color expands the form to mid-height (if currently small)
-    // so the user gets more room for the description right after picking.
     if (height.value < MID_HEIGHT - 10) {
       height.value = withSpring(MID_HEIGHT, { damping: 20, stiffness: 180 });
     }
@@ -120,7 +119,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
       height.value = Math.max(MIN_HEIGHT, Math.min(maxHeightSV.value, next));
     })
     .onEnd((e) => {
-      // Strong downward swipe from BASE → slide form off the bottom + close
       if (e.translationY > 150 && startHeight.value <= BASE_HEIGHT + 50) {
         translateY.value = withTiming(
           height.value,
@@ -131,7 +129,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
         );
         return;
       }
-      // Otherwise snap to nearest of BASE / MID / MAX
       const targets = [BASE_HEIGHT, midHeightSV.value, maxHeightSV.value];
       let best = targets[0];
       let bestDist = Math.abs(targets[0] - height.value);
@@ -145,8 +142,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
       height.value = withSpring(best, { damping: 20, stiffness: 180 });
     });
 
-  // Horizontal swipe: at BASE → slide off-screen + close.
-  // Above BASE → collapse to BASE.
   const horizontalSwipe = Gesture.Pan()
     .activeOffsetX([-30, 30])
     .failOffsetY([-15, 15])
@@ -179,17 +174,167 @@ export default function AddTaskInput({ onSubmit }: Props) {
     ],
   }));
 
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        collapsed: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backgroundColor: theme.colors.surface,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.colors.border,
+          paddingHorizontal: theme.spacing.lg,
+          paddingVertical: 14,
+        },
+        collapsedText: {
+          flex: 1,
+          fontSize: theme.font.md,
+          color: theme.colors.textMuted,
+        },
+        collapsedDraft: {
+          color: theme.colors.text,
+          fontWeight: '500',
+        },
+        btnSmall: {
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          backgroundColor: theme.colors.accent,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        expanded: {
+          backgroundColor: theme.colors.surface,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.colors.border,
+        },
+        dragHandleArea: {
+          paddingVertical: 16,
+          paddingHorizontal: theme.spacing.lg,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        dragHandleBar: {
+          width: 70,
+          height: 7,
+          borderRadius: 4,
+          backgroundColor: theme.colors.textSubtle,
+        },
+        titleRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: theme.spacing.md,
+          paddingVertical: theme.spacing.sm,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.borderSubtle,
+        },
+        iconBtn: {
+          width: 36,
+          height: 36,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        titleInput: {
+          flex: 1,
+          fontSize: theme.font.lg,
+          color: theme.colors.text,
+          paddingVertical: theme.spacing.sm,
+          paddingHorizontal: theme.spacing.md,
+          backgroundColor: theme.colors.background,
+          borderRadius: theme.radius.md,
+          marginHorizontal: theme.spacing.xs,
+        },
+        btnPrimary: {
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: theme.colors.accent,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        btnDisabled: {
+          opacity: 0.3,
+        },
+        contentArea: {
+          flex: 1,
+          padding: theme.spacing.lg,
+        },
+        label: {
+          fontSize: theme.font.xs,
+          color: theme.colors.textSubtle,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
+          marginBottom: theme.spacing.sm,
+        },
+        labelDesc: {
+          marginTop: theme.spacing.lg,
+        },
+        colorRow: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: theme.spacing.md,
+        },
+        colorDot: {
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        colorDotNone: {
+          borderWidth: 1.5,
+          borderColor: theme.colors.border,
+          borderStyle: 'dashed',
+        },
+        colorDotSelected: {
+          borderWidth: 3,
+          borderColor: theme.colors.text,
+        },
+        descInput: {
+          flex: 1,
+          fontSize: theme.font.md,
+          color: theme.colors.text,
+          minHeight: 60,
+          paddingVertical: theme.spacing.sm,
+          paddingHorizontal: 0,
+          backgroundColor: 'transparent',
+        },
+      }),
+    [theme]
+  );
+
   if (!open) {
+    const draft = title.trim();
     return (
       <TouchableOpacity
         style={styles.collapsed}
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
       >
-        <Text style={styles.collapsedText}>Ajouter une nouvelle tâche</Text>
-        <View style={styles.btnSmall}>
+        <Text
+          style={[
+            styles.collapsedText,
+            draft ? styles.collapsedDraft : null,
+          ]}
+          numberOfLines={1}
+        >
+          {draft || 'Ajouter une nouvelle tâche'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => {
+            if (draft) {
+              submit();
+            } else {
+              setOpen(true);
+            }
+          }}
+          style={styles.btnSmall}
+          hitSlop={8}
+        >
           <Feather name="plus" size={40} color={theme.colors.textInverse} />
-        </View>
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   }
@@ -198,7 +343,6 @@ export default function AddTaskInput({ onSubmit }: Props) {
     const order = [BASE_HEIGHT, MID_HEIGHT, maxHeight];
     const current = height.value;
     let next = order[0];
-    // Pick the next stop > current; wrap to BASE if at top
     for (const h of order) {
       if (h > current + 20) {
         next = h;
@@ -287,126 +431,3 @@ export default function AddTaskInput({ onSubmit }: Props) {
     </GestureDetector>
   );
 }
-
-const styles = StyleSheet.create({
-  collapsed: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: 14,
-  },
-  collapsedText: {
-    flex: 1,
-    fontSize: theme.font.md,
-    color: theme.colors.textMuted,
-  },
-  btnSmall: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  expanded: {
-    backgroundColor: theme.colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.border,
-  },
-  dragHandleArea: {
-    paddingVertical: 16,
-    paddingHorizontal: theme.spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dragHandleBar: {
-    width: 70,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: theme.colors.textSubtle,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.colors.borderSubtle,
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleInput: {
-    flex: 1,
-    fontSize: theme.font.lg,
-    color: theme.colors.text,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.radius.md,
-    marginHorizontal: theme.spacing.xs,
-  },
-  btnPrimary: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnDisabled: {
-    opacity: 0.3,
-  },
-  contentArea: {
-    flex: 1,
-    padding: theme.spacing.lg,
-  },
-  label: {
-    fontSize: theme.font.xs,
-    color: theme.colors.textSubtle,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: theme.spacing.sm,
-  },
-  labelDesc: {
-    marginTop: theme.spacing.lg,
-  },
-  colorRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.md,
-  },
-  colorDot: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorDotNone: {
-    borderWidth: 1.5,
-    borderColor: theme.colors.border,
-    borderStyle: 'dashed',
-  },
-  colorDotSelected: {
-    borderWidth: 3,
-    borderColor: theme.colors.text,
-  },
-  descInput: {
-    flex: 1,
-    fontSize: theme.font.md,
-    color: theme.colors.text,
-    minHeight: 60,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: 0,
-    backgroundColor: 'transparent',
-  },
-});
