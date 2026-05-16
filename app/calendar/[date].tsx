@@ -106,6 +106,55 @@ export default function DayScreen() {
   const pagerRef = useRef<PagerView>(null);
   const isInternalNav = useRef(false);
 
+  // Routines data lives at the screen level: groups, the active group
+  // selection, and all routines per group are shared across every
+  // mounted DayContent. Previously each DayContent fetched its own
+  // copy, which meant N alive DayContents × the same SQL N times +
+  // a refetch on every screen refocus (e.g. returning from /routines).
+  // Hoisting collapses that to a single fetch per focus.
+  const [groups, setGroups] = useState<RoutineGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [routinesByGroup, setRoutinesByGroup] = useState<
+    Record<string, Routine[]>
+  >({});
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        const [allGroups, storedActive] = await Promise.all([
+          listGroups(),
+          getSetting(ACTIVE_GROUP_KEY),
+        ]);
+        if (cancelled) return;
+        setGroups(allGroups);
+        const fallback = allGroups[0]?.id ?? null;
+        const active =
+          storedActive && allGroups.some((g) => g.id === storedActive)
+            ? storedActive
+            : fallback;
+        setActiveGroupId(active);
+        const lists = await Promise.all(
+          allGroups.map((g) => listRoutinesByGroup(g.id))
+        );
+        if (cancelled) return;
+        const map: Record<string, Routine[]> = {};
+        allGroups.forEach((g, i) => {
+          map[g.id] = lists[i];
+        });
+        setRoutinesByGroup(map);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  const handleSelectGroup = useCallback(async (groupId: string) => {
+    setActiveGroupId(groupId);
+    await setSetting(ACTIVE_GROUP_KEY, groupId);
+  }, []);
+
   const [windowDates] = useState<string[]>(() => {
     const base = parseISO(date);
     const out: string[] = [];
@@ -165,7 +214,14 @@ export default function DayScreen() {
         {windowDates.map((d, i) => (
           <View key={d} collapsable={false} style={{ flex: 1 }}>
             {Math.abs(i - activeIdx) <= RENDER_HALF ? (
-              <DayContent date={d} width={width} />
+              <DayContent
+                date={d}
+                width={width}
+                groups={groups}
+                activeGroupId={activeGroupId}
+                routinesByGroup={routinesByGroup}
+                onSelectGroup={handleSelectGroup}
+              />
             ) : null}
           </View>
         ))}
@@ -180,13 +236,23 @@ export default function DayScreen() {
 // so the memo short-circuits the entire subtree. Less work during the
 // animation = fewer dropped frames = less perceived flicker on the
 // elements that differ between pages (trash badge, date title, etc.).
+type DayContentProps = {
+  date: string;
+  width: number;
+  groups: RoutineGroup[];
+  activeGroupId: string | null;
+  routinesByGroup: Record<string, Routine[]>;
+  onSelectGroup: (groupId: string) => void;
+};
+
 const DayContent = memo(function DayContent({
   date,
   width,
-}: {
-  date: string;
-  width: number;
-}) {
+  groups,
+  activeGroupId,
+  routinesByGroup,
+  onSelectGroup,
+}: DayContentProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -195,11 +261,6 @@ const DayContent = memo(function DayContent({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mantra, setMantra] = useState<string>('');
-  const [groups, setGroups] = useState<RoutineGroup[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [routinesByGroup, setRoutinesByGroup] = useState<
-    Record<string, Routine[]>
-  >({});
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [collapsedSections, setCollapsedSections] = useState<
     Record<SectionKey, boolean>
@@ -223,46 +284,20 @@ const DayContent = memo(function DayContent({
     }, [reload])
   );
 
+  // Day-specific data only — groups / routinesByGroup / activeGroupId
+  // are shared via props from DayScreen. completedIds still belongs
+  // here because it varies per day.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      (async () => {
-        const [allGroups, storedActive, dayCompletions] = await Promise.all([
-          listGroups(),
-          getSetting(ACTIVE_GROUP_KEY),
-          getCompletionsForDay(date),
-        ]);
-        if (cancelled) return;
-        setGroups(allGroups);
-        setCompletedIds(dayCompletions);
-        const fallback = allGroups[0]?.id ?? null;
-        const active =
-          storedActive && allGroups.some((g) => g.id === storedActive)
-            ? storedActive
-            : fallback;
-        setActiveGroupId(active);
-        // Fetch routines for every group up-front so the horizontal pager
-        // can scroll across them without flickering. N stays small.
-        const lists = await Promise.all(
-          allGroups.map((g) => listRoutinesByGroup(g.id))
-        );
-        if (cancelled) return;
-        const map: Record<string, Routine[]> = {};
-        allGroups.forEach((g, i) => {
-          map[g.id] = lists[i];
-        });
-        setRoutinesByGroup(map);
-      })();
+      getCompletionsForDay(date).then((c) => {
+        if (!cancelled) setCompletedIds(c);
+      });
       return () => {
         cancelled = true;
       };
     }, [date])
   );
-
-  const handleSelectGroup = useCallback(async (groupId: string) => {
-    setActiveGroupId(groupId);
-    await setSetting(ACTIVE_GROUP_KEY, groupId);
-  }, []);
 
   const toggleSection = useCallback((key: SectionKey) => {
     // Native LayoutAnimation handles both the rows disappearing and
@@ -764,7 +799,7 @@ const DayContent = memo(function DayContent({
           activeGroupId={activeGroupId}
           routinesByGroup={visibleRoutinesByGroup}
           completedIds={completedIds}
-          onSelectGroup={handleSelectGroup}
+          onSelectGroup={onSelectGroup}
           onToggle={handleToggleRoutine}
           onOpenTracker={() => router.push('/routines')}
         />

@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   LayoutAnimation,
@@ -35,7 +35,7 @@ type Props = {
   onOpenTracker: () => void;
 };
 
-export default function DayRoutinesSection({
+function DayRoutinesSectionImpl({
   groups,
   activeGroupId,
   routinesByGroup,
@@ -388,10 +388,16 @@ export default function DayRoutinesSection({
   );
 }
 
+// memo: DayRoutinesSection sits inside the day hub which re-renders
+// whenever DayContent re-renders. Without memo, every task tick / row
+// re-layout would re-instantiate all GroupChip animated styles below.
+const DayRoutinesSection = memo(DayRoutinesSectionImpl);
+export default DayRoutinesSection;
+
 // Chip whose background/text interpolate as the inner pager scrolls,
 // so the active state changes in lockstep with the swipe instead of
 // snapping after onMomentumScrollEnd.
-function GroupChip({
+const GroupChip = memo(function GroupChip({
   group,
   index,
   scrollX,
@@ -445,4 +451,4 @@ function GroupChip({
       </TouchableOpacity>
     </Animated.View>
   );
-}
+});
