@@ -2,7 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
-  LayoutAnimation,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   ScrollView,
@@ -13,13 +12,16 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  Easing,
   interpolateColor,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
+  withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import DragHandle from '@/components/DragHandle';
 import { useTheme } from '@/lib/themeContext';
 import { softColorBg } from '@/lib/colors';
 import type { FeatherName } from '@/lib/icons';
@@ -58,18 +60,59 @@ function DayRoutinesSectionImpl({
     },
   });
 
+  // Smooth fold/unfold:
+  //   • Visual (scaleY + opacity): GPU animation via reanimated. No
+  //     per-frame relayout. Origin = top so it rolls down from header.
+  //   • Layout (height: 0 vs auto): toggled in JS state so siblings
+  //     snap to position only at the boundaries, not every frame.
+  //
+  // The animation is fired DIRECTLY from the tap handler (not via a
+  // useEffect chained on the `collapsed` state). Going through useEffect
+  // adds ~2 frames of latency on unfold because layoutHidden has to flip
+  // first and only then the animation can start — perceptible as a
+  // dead-time between tap and visual reveal.
+  //
+  // Content is mounted permanently — the JS mount cost on first unfold
+  // would otherwise compete with the animation worklet and stutter it.
+  const scaleAnim = useSharedValue(collapsed ? 0 : 1);
+  const opacityAnim = useSharedValue(collapsed ? 0 : 1);
+  const [layoutHidden, setLayoutHidden] = useState(collapsed);
+  const collapseStyle = useAnimatedStyle(() => ({
+    transform: [{ scaleY: scaleAnim.value }],
+    opacity: opacityAnim.value,
+  }));
+
   const toggleCollapsed = () => {
-    // Native LayoutAnimation: the OS interpolates the layout change in
-    // one pass. Much lighter than animating height per-frame via
-    // Reanimated when the section has many siblings (tasks list) below
-    // that have to reflow each frame.
-    LayoutAnimation.configureNext({
-      duration: 220,
-      create: { type: 'easeInEaseOut', property: 'opacity' },
-      update: { type: 'easeInEaseOut' },
-      delete: { type: 'easeInEaseOut', property: 'opacity' },
-    });
-    setCollapsed((c) => !c);
+    const next = !collapsed;
+    if (!next) {
+      // Unfold: layout opens, opacity + scale fire together so the
+      // section finishes its reveal at the same beat.
+      setLayoutHidden(false);
+      opacityAnim.value = withTiming(1, {
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+      });
+      scaleAnim.value = withTiming(1, {
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+      });
+    } else {
+      // Fold: opacity + scale shrink in lockstep so there's no
+      // dead-time where the content is already invisible but the
+      // layout hasn't snapped yet (that gap reads as "loading").
+      opacityAnim.value = withTiming(0, {
+        duration: 80,
+        easing: Easing.out(Easing.quad),
+      });
+      scaleAnim.value = withTiming(
+        0,
+        { duration: 80, easing: Easing.out(Easing.quad) },
+        (finished) => {
+          if (finished) runOnJS(setLayoutHidden)(true);
+        }
+      );
+    }
+    setCollapsed(next);
   };
 
   const pageWidth = width - theme.spacing.lg * 2;
@@ -117,9 +160,6 @@ function DayRoutinesSectionImpl({
           paddingVertical: 4,
         },
         headerLeft: {
-          flex: 1,
-        },
-        headerRight: {
           flexDirection: 'row',
           alignItems: 'center',
           gap: theme.spacing.sm,
@@ -136,9 +176,6 @@ function DayRoutinesSectionImpl({
           fontWeight: '700',
           color: theme.colors.routine,
           letterSpacing: 0.5,
-        },
-        chevron: {
-          marginLeft: 0,
         },
         groupHeader: {
           marginTop: theme.spacing.sm,
@@ -210,31 +247,85 @@ function DayRoutinesSectionImpl({
           paddingHorizontal: theme.spacing.md,
           alignItems: 'center',
         },
-        handleWrap: {
-          marginTop: theme.spacing.xs,
+        emptyIcon: {
+          opacity: 0.5,
+          marginBottom: theme.spacing.xs,
         },
         emptyText: {
           fontSize: theme.font.sm,
           color: theme.colors.textMuted,
           textAlign: 'center',
         },
+        collapsible: {
+          // Scale grows downward from the header instead of from the
+          // middle — feels like an accordion unrolling.
+          transformOrigin: 'top',
+        },
+        collapsibleHidden: {
+          // Snapped layout shrink to free space below when fully folded.
+          // The visual scale animation finishes before this kicks in.
+          height: 0,
+          overflow: 'hidden',
+        },
+        statsBtnWrap: {
+          marginTop: theme.spacing.md,
+          alignItems: 'center',
+        },
+        statsBtn: {
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: theme.colors.surfaceAlt,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.border,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.08,
+          shadowRadius: 3,
+          elevation: 2,
+        },
       }),
     [theme]
   );
 
+  // Per-group done/total used on chips so the user sees which groups
+  // are already completed without having to swipe through them.
+  // Must stay above any conditional return — Rules of Hooks: hooks
+  // run in the same order every render.
+  const groupCounts = useMemo(() => {
+    const out: Record<string, { done: number; total: number }> = {};
+    for (const g of groups) {
+      const list = routinesByGroup[g.id] ?? [];
+      const total = list.length;
+      const done = list.reduce(
+        (acc, r) => acc + (completedIds.has(r.id) ? 1 : 0),
+        0
+      );
+      out[g.id] = { done, total };
+    }
+    return out;
+  }, [groups, routinesByGroup, completedIds]);
+
   if (groups.length === 0) return null;
 
-  const activeRoutines = activeGroupId
-    ? routinesByGroup[activeGroupId] ?? []
-    : [];
-  const doneCount = activeRoutines.filter((r) =>
-    completedIds.has(r.id)
+  // Counter shows fully-completed groups out of total groups that
+  // have at least one routine. A group counts as "done" when every
+  // routine in it is checked for the current day. Empty groups are
+  // ignored from both numerator and denominator.
+  const groupsWithRoutines = groups.filter(
+    (g) => (routinesByGroup[g.id] ?? []).length > 0
+  );
+  const totalGroupsCount = groupsWithRoutines.length;
+  const doneGroupsCount = groupsWithRoutines.filter((g) =>
+    (routinesByGroup[g.id] ?? []).every((r) => completedIds.has(r.id))
   ).length;
-  const allDone =
-    activeRoutines.length > 0 && doneCount === activeRoutines.length;
+  const allGroupsDone =
+    totalGroupsCount > 0 && doneGroupsCount === totalGroupsCount;
   const counterLabel =
-    activeRoutines.length > 0
-      ? `${doneCount}/${activeRoutines.length}${allDone ? ' ✓' : ''}`
+    totalGroupsCount > 0
+      ? `${doneGroupsCount}/${totalGroupsCount}${allGroupsDone ? ' ✓' : ''}`
       : '';
 
   const renderPage = (group: RoutineGroup) => {
@@ -253,6 +344,12 @@ function DayRoutinesSectionImpl({
         <View style={[styles.card, { backgroundColor: softBg }]}>
           {list.length === 0 ? (
             <TouchableOpacity onPress={onOpenTracker} style={styles.empty}>
+              <Feather
+                name="repeat"
+                size={28}
+                color={accent}
+                style={styles.emptyIcon}
+              />
               <Text style={styles.emptyText}>
                 Aucune routine dans ce groupe.{'\n'}Appuie ici pour en ajouter.
               </Text>
@@ -260,40 +357,21 @@ function DayRoutinesSectionImpl({
           ) : (
             list.map((r) => {
               const done = completedIds.has(r.id);
-              const iconName = (r.icon as FeatherName | null) ?? null;
               return (
-                <TouchableOpacity
+                <RoutineRow
                   key={r.id}
-                  onPress={() => onToggle(r.id, !done)}
-                  activeOpacity={0.7}
-                  style={styles.row}
-                >
-                  <View
-                    style={[
-                      styles.check,
-                      { borderColor: accent },
-                      done && { backgroundColor: accent },
-                    ]}
-                  >
-                    {done ? (
-                      <Feather
-                        name="check"
-                        size={14}
-                        color={theme.colors.textInverse}
-                      />
-                    ) : iconName ? (
-                      <Feather name={iconName} size={12} color={accent} />
-                    ) : null}
-                  </View>
-                  <Text
-                    style={[
-                      styles.routineText,
-                      done && styles.routineTextDone,
-                    ]}
-                  >
-                    {r.title}
-                  </Text>
-                </TouchableOpacity>
+                  routine={r}
+                  done={done}
+                  accent={accent}
+                  onToggle={onToggle}
+                  rowStyle={styles.row}
+                  checkStyle={styles.check}
+                  textInverse={theme.colors.textInverse}
+                  routineTextStyle={[
+                    styles.routineText,
+                    done && styles.routineTextDone,
+                  ]}
+                />
               );
             })
           )}
@@ -311,44 +389,52 @@ function DayRoutinesSectionImpl({
       >
         <View style={styles.headerLeft}>
           <Text style={styles.title}>Routines</Text>
-        </View>
-        <View style={styles.headerRight}>
           {counterLabel ? (
             <Text style={styles.headerCounter}>{counterLabel}</Text>
           ) : null}
-          <Feather
-            name={collapsed ? 'chevron-up' : 'chevron-down'}
-            size={18}
-            color={theme.colors.routine}
-            style={styles.chevron}
-          />
         </View>
+        <Feather
+          name={collapsed ? 'chevron-up' : 'chevron-down'}
+          size={20}
+          color={theme.colors.routine}
+        />
       </TouchableOpacity>
 
-      {collapsed ? null : (
-        <View>
-          {groups.length > 1 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
+      <Animated.View
+        style={[
+          styles.collapsible,
+          layoutHidden ? styles.collapsibleHidden : null,
+          collapseStyle,
+        ]}
+        pointerEvents={collapsed ? 'none' : 'auto'}
+      >
+        {groups.length > 1 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.tabBar}
             >
-              {groups.map((g, i) => (
-                <GroupChip
-                  key={g.id}
-                  group={g}
-                  index={i}
-                  scrollX={scrollX}
-                  pageWidth={pageWidth}
-                  fallbackColor={theme.colors.routine}
-                  inactiveBg={theme.colors.surfaceAlt}
-                  activeText={theme.colors.textInverse}
-                  inactiveText={theme.colors.textMuted}
-                  onPress={() => handleChipTap(i, g.id)}
-                  chipStyle={styles.chip}
-                  chipTextStyle={styles.chipText}
-                />
-              ))}
+              {groups.map((g, i) => {
+                const c = groupCounts[g.id] ?? { done: 0, total: 0 };
+                return (
+                  <GroupChip
+                    key={g.id}
+                    group={g}
+                    index={i}
+                    scrollX={scrollX}
+                    pageWidth={pageWidth}
+                    fallbackColor={theme.colors.routine}
+                    inactiveBg={theme.colors.surfaceAlt}
+                    activeText={theme.colors.textInverse}
+                    inactiveText={theme.colors.textMuted}
+                    onPress={() => handleChipTap(i, g.id)}
+                    chipStyle={styles.chip}
+                    chipTextStyle={styles.chipText}
+                    done={c.done}
+                    total={c.total}
+                  />
+                );
+              })}
             </ScrollView>
           ) : null}
 
@@ -375,15 +461,21 @@ function DayRoutinesSectionImpl({
             scrollEventThrottle={16}
             renderItem={({ item }) => renderPage(item)}
           />
-          <View style={styles.handleWrap}>
-            <DragHandle
-              direction="up"
-              onTrigger={onOpenTracker}
-              label="Stats"
-            />
+          <View style={styles.statsBtnWrap}>
+            <TouchableOpacity
+              onPress={onOpenTracker}
+              activeOpacity={0.7}
+              hitSlop={8}
+              style={styles.statsBtn}
+            >
+              <Feather
+                name="bar-chart-2"
+                size={20}
+                color={theme.colors.routine}
+              />
+            </TouchableOpacity>
           </View>
-        </View>
-      )}
+        </Animated.View>
     </View>
   );
 }
@@ -409,6 +501,8 @@ const GroupChip = memo(function GroupChip({
   onPress,
   chipStyle,
   chipTextStyle,
+  done,
+  total,
 }: {
   group: RoutineGroup;
   index: number;
@@ -421,6 +515,8 @@ const GroupChip = memo(function GroupChip({
   onPress: () => void;
   chipStyle: object;
   chipTextStyle: object;
+  done: number;
+  total: number;
 }) {
   const chipColor = group.color ?? fallbackColor;
 
@@ -442,13 +538,85 @@ const GroupChip = memo(function GroupChip({
     };
   });
 
+  const allDone = total > 0 && done === total;
+  const countLabel = total > 0 ? `  ${done}/${total}${allDone ? ' ✓' : ''}` : '';
+
   return (
     <Animated.View style={[chipStyle, bgStyle]}>
       <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
         <Animated.Text style={[chipTextStyle, textStyle]}>
           {group.name}
+          {countLabel ? (
+            <Animated.Text style={[chipTextStyle, textStyle, { opacity: 0.75 }]}>
+              {countLabel}
+            </Animated.Text>
+          ) : null}
         </Animated.Text>
       </TouchableOpacity>
     </Animated.View>
   );
 });
+
+// POLISH:routine-burst — row with a check-icon scale pop when the row
+// transitions from undone → done. To remove the feature: collapse the
+// inner Animated.View back to a plain View and revert the call site to
+// render the row inline.
+const RoutineRow = memo(function RoutineRow({
+  routine,
+  done,
+  accent,
+  onToggle,
+  rowStyle,
+  checkStyle,
+  routineTextStyle,
+  textInverse,
+}: {
+  routine: Routine;
+  done: boolean;
+  accent: string;
+  onToggle: (id: string, nextDone: boolean) => void;
+  rowStyle: object;
+  checkStyle: object;
+  routineTextStyle: object;
+  textInverse: string;
+}) {
+  const iconName = (routine.icon as FeatherName | null) ?? null;
+  const burst = useSharedValue(1);
+  const wasDone = useRef(done);
+  useEffect(() => {
+    if (done && !wasDone.current) {
+      burst.value = withSequence(
+        withTiming(1.35, { duration: 110, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 160, easing: Easing.inOut(Easing.quad) })
+      );
+    }
+    wasDone.current = done;
+  }, [done, burst]);
+  const burstStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: burst.value }],
+  }));
+  return (
+    <TouchableOpacity
+      onPress={() => onToggle(routine.id, !done)}
+      activeOpacity={0.7}
+      style={rowStyle}
+    >
+      <Animated.View
+        style={[
+          checkStyle,
+          { borderColor: accent },
+          done && { backgroundColor: accent },
+          burstStyle,
+        ]}
+      >
+        {done ? (
+          <Feather name="check" size={14} color={textInverse} />
+        ) : iconName ? (
+          <Feather name={iconName} size={12} color={accent} />
+        ) : null}
+      </Animated.View>
+      <Text style={routineTextStyle}>{routine.title}</Text>
+    </TouchableOpacity>
+  );
+});
+// /POLISH:routine-burst

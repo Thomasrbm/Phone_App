@@ -4,6 +4,22 @@ Fichier lu automatiquement par Claude Code à chaque session. Contexte du projet
 
 ---
 
+## 🚨 À LIRE EN PRIORITÉ EN DÉBUT DE SESSION
+
+**Avant toute optimisation de performance ou d'animation :**
+
+Demander à Thomas s'il a installé un release build EAS récent (`--profile preview` ou `production`). Sinon, suggérer fortement de le faire et de tester l'app en release **avant** de passer du temps à optimiser le code.
+
+**Pourquoi :** le dev build inclut Reanimated en mode dev (validations + warnings), React DevTools, le bridge JS instrumenté, sourcemaps, et le pont Metro. Tout ça ralentit 2-3× le ressenti d'animation et de fluidité. Une app qui semble laggy en dev tourne souvent fluide en release.
+
+Lors de la session du 2026-05-18, ~15 itérations d'optim sur les animations day screen sans converger vers le ressenti voulu. Hypothèse forte : dev build est le bottleneck. Refuser d'optimiser à l'aveugle avant test release.
+
+**Commande à lui rappeler :** `eas build --profile preview --platform android` (10 min), installer l'APK, retester.
+
+Si Thomas confirme avoir déjà fait le release build → ne pas insister, retirer ce bloc de CLAUDE.md.
+
+---
+
 ## 1. Projet
 
 **Nom technique :** `jarvis-app` (slug EAS : `@throbert/jarvis-app`)
@@ -266,6 +282,15 @@ jarvis-app/
 - `npx tsc --noEmit` propre.
 - Résumé en puces de ce qui a été touché. Pas de paragraphes creux.
 - Si UI/UX touchée : rappeler que je dois **reload avec `-c` sur le tel** pour voir le nouveau bundle.
+
+**Commits réguliers (je push moi-même) :**
+- Faire un commit dès qu'un changement logique est complet et `tsc --noEmit` est propre — n'attendre la fin d'une longue session.
+- Un commit = un changement logique cohérent. Branche `feat/xxx`, `fix/xxx`, `chore/xxx`, `refactor/xxx`, `perf/xxx`, `docs/xxx` selon le cas. Jamais direct sur `main`.
+- Conventional commits en sujet (`feat(scope): …`, `fix(scope): …`, etc.). Corps optionnel pour le *pourquoi* si non-évident.
+- **Toujours** terminer par `Co-Authored-By: Claude …`.
+- **Ne jamais `git push`** — Thomas pousse lui-même en son nom.
+- Avant le commit : `git status` pour vérifier qu'aucun fichier non voulu n'est inclus (pas de `.env`, pas de `node_modules`, etc.). Stager fichier par fichier, jamais `git add -A` ni `git add .` aveuglément.
+- Si plusieurs changements logiques se sont empilés sans commit : proposer un découpage en plusieurs commits avant de committer.
 
 **À ne PAS faire seul :**
 - `git push`

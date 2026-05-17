@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import {
   addMonths,
   addWeeks,
@@ -13,7 +13,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   type NativeScrollEvent,
@@ -38,7 +38,30 @@ const PAGES_BEFORE = 12;
 const PAGES_AFTER = 12;
 const WEEKDAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
 
-export default function CalendarScreen() {
+// Survive remounts: last fetched counts are shown immediately on re-entry,
+// then refreshed in the background by useFocusEffect.
+let cachedCounts: Record<string, DayCounts> = {};
+
+type Props = {
+  // Hub mode: when these are provided, the component skips Stack.Screen
+  // config and routes day taps / encoche through callbacks instead of
+  // router.push. Used by the always-mounted hub at /.
+  hubMode?: boolean;
+  onSelectDay?: (dayKey: string) => void;
+  onSwipeUp?: () => void;
+  // Hub-only: bumped by the day view after every task mutation so this
+  // screen refreshes its per-day counters. In standalone-route mode
+  // useFocusEffect already covers refresh on focus, so this stays
+  // undefined.
+  tasksVersion?: number;
+};
+
+export default function CalendarScreen({
+  hubMode,
+  onSelectDay,
+  onSwipeUp,
+  tasksVersion,
+}: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -72,7 +95,9 @@ export default function CalendarScreen() {
   const [visibleWeek, setVisibleWeek] = useState<Date>(
     startOfWeek(today, { weekStartsOn: 1 })
   );
-  const [counts, setCounts] = useState<Record<string, DayCounts>>({});
+  const [counts, setCounts] = useState<Record<string, DayCounts>>(
+    () => cachedCounts
+  );
 
   const range = useMemo(() => {
     const start = startOfWeek(startOfMonth(months[0]), { weekStartsOn: 1 });
@@ -86,7 +111,9 @@ export default function CalendarScreen() {
     useCallback(() => {
       let cancelled = false;
       getTaskCountsInRange(range.start, range.end).then((data) => {
-        if (!cancelled) setCounts(data);
+        if (cancelled) return;
+        setCounts(data);
+        cachedCounts = data;
       });
       return () => {
         cancelled = true;
@@ -94,8 +121,31 @@ export default function CalendarScreen() {
     }, [range])
   );
 
+  // Hub mode: in-place refresh whenever the day view signals a mutation.
+  // Skipped on the very first render (tasksVersion === 0 by default) to
+  // avoid double-fetching alongside useFocusEffect on mount.
+  const firstTasksVersion = useRef(true);
+  useEffect(() => {
+    if (tasksVersion === undefined) return;
+    if (firstTasksVersion.current) {
+      firstTasksVersion.current = false;
+      return;
+    }
+    let cancelled = false;
+    getTaskCountsInRange(range.start, range.end).then((data) => {
+      if (cancelled) return;
+      setCounts(data);
+      cachedCounts = data;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tasksVersion, range]);
+
   const handleDayPress = (date: Date) => {
-    router.push(`/calendar/${toDayKey(date)}`);
+    const key = toDayKey(date);
+    if (onSelectDay) onSelectDay(key);
+    else router.push(`/calendar/${key}`);
   };
 
   const handleMonthScrollEnd = (
@@ -256,11 +306,13 @@ export default function CalendarScreen() {
   const closeToHub = useCallback(() => {
     // Always land on TODAY's real date — recompute at trigger time so
     // we don't pin to a stale `today` captured at mount.
-    router.replace(`/calendar/${toDayKey(new Date())}`);
-  }, [router]);
+    if (onSwipeUp) onSwipeUp();
+    else router.replace(`/calendar/${toDayKey(new Date())}`);
+  }, [router, onSwipeUp]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {!hubMode ? <Stack.Screen options={{ animation: 'none' }} /> : null}
       <View style={styles.topRow}>
         <View style={styles.leftActions}>
           <TouchableOpacity
@@ -273,11 +325,7 @@ export default function CalendarScreen() {
         </View>
 
         <View style={styles.todayCenter}>
-          <TodayButton
-            day={today.getDate()}
-            onPress={goToToday}
-            onLongPress={closeToHub}
-          />
+          <TodayButton day={today.getDate()} onPress={goToToday} />
         </View>
 
         <View style={styles.rightActions}>

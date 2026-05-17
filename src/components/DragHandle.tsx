@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, Vibration, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -73,7 +73,13 @@ export default function DragHandle({
           ? e.translationY > threshold
           : e.translationY < -threshold;
       ty.value = withSpring(0, { damping: 22, stiffness: 260 });
-      if (passed) runOnJS(onTrigger)();
+      if (passed) {
+        // POLISH:encoche-haptic — short 20 ms vibration when the swipe
+        // crosses the threshold and the view actually changes.
+        runOnJS(Vibration.vibrate)(20);
+        // /POLISH:encoche-haptic
+        runOnJS(onTrigger)();
+      }
     });
 
   const barAnim = useAnimatedStyle(() => ({

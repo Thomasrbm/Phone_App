@@ -194,16 +194,19 @@ export default function TrashScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
+            {/* POLISH:empty-trash */}
             <Feather
               name="trash-2"
-              size={40}
+              size={44}
               color={theme.colors.textSubtle}
+              style={{ opacity: 0.45 }}
             />
-            <Text style={styles.emptyText}>Aucune tâche supprimée.</Text>
+            <Text style={styles.emptyText}>Corbeille vide</Text>
             <Text style={styles.emptyHint}>
-              Les tâches que tu supprimes apparaîtront ici, swipe vers la
-              gauche pour restaurer.
+              Les tâches supprimées atterrissent ici{'\n'}— swipe vers la
+              gauche pour restaurer
             </Text>
+            {/* /POLISH:empty-trash */}
           </View>
         }
       />

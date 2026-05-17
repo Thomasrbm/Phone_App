@@ -39,9 +39,16 @@ import { getSetting, setSetting } from '@/db/settings';
 import { TASK_COLORS } from '@/lib/colors';
 import { toDayKey } from '@/lib/date';
 import type { FeatherName } from '@/lib/icons';
+import { routinesCache } from '@/lib/routinesCache';
 import { useTheme } from '@/lib/themeContext';
 
 const ACTIVE_GROUP_KEY = 'routines_active_group';
+
+// Stats + heatmap completions are only consumed by this screen; cache
+// them here (not in the shared cache) so a re-entry skips the per-routine
+// round-trips and renders the cards in their last-known state.
+let cachedStats: Record<string, RoutineStats> = {};
+let cachedCompletions: Record<string, Set<string>> = {};
 
 type ModalState =
   | { type: 'create-group'; name: string; color: string | null }
@@ -65,7 +72,17 @@ function monthBounds(d: Date): { start: string; end: string } {
   return { start: toDayKey(first), end: toDayKey(last) };
 }
 
-export default function RoutinesTrackerScreen() {
+type Props = {
+  // Hub mode: when true, skip Stack.Screen and route the encoche swipe
+  // through onSwipeUp callback instead of router.replace.
+  hubMode?: boolean;
+  onSwipeUp?: () => void;
+};
+
+export default function RoutinesTrackerScreen({
+  hubMode,
+  onSwipeUp,
+}: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
   const today = useMemo(() => new Date(), []);
@@ -75,14 +92,20 @@ export default function RoutinesTrackerScreen() {
     [today]
   );
 
-  const [groups, setGroups] = useState<RoutineGroup[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [groups, setGroups] = useState<RoutineGroup[]>(
+    () => routinesCache.groups
+  );
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(
+    () => routinesCache.activeGroupId
+  );
   const [routinesByGroup, setRoutinesByGroup] = useState<
     Record<string, Routine[]>
-  >({});
-  const [stats, setStats] = useState<Record<string, RoutineStats>>({});
+  >(() => routinesCache.routinesByGroup);
+  const [stats, setStats] = useState<Record<string, RoutineStats>>(
+    () => cachedStats
+  );
   const [completions, setCompletions] = useState<Record<string, Set<string>>>(
-    {}
+    () => cachedCompletions
   );
   const [modal, setModal] = useState<ModalState>(null);
   const [kbHeight, setKbHeight] = useState(0);
@@ -159,6 +182,11 @@ export default function RoutinesTrackerScreen() {
     });
     setStats(statsMap);
     setCompletions(compMap);
+    routinesCache.groups = allGroups;
+    routinesCache.activeGroupId = active;
+    routinesCache.routinesByGroup = routinesMap;
+    cachedStats = statsMap;
+    cachedCompletions = compMap;
   }, [todayKey, monthStart, monthEnd]);
 
   const activeIndex = useMemo(() => {
@@ -167,7 +195,17 @@ export default function RoutinesTrackerScreen() {
     return i >= 0 ? i : 0;
   }, [groups, activeGroupId]);
 
+  // Tapping a chip drives the scroll itself (animated). Without this
+  // guard, setActiveGroupId would also re-fire the useEffect below and
+  // snap the pager (animated:false) before the animation could run —
+  // visible as a "jump" right after the tap.
+  const suppressNextSnap = useRef(false);
+
   useEffect(() => {
+    if (suppressNextSnap.current) {
+      suppressNextSnap.current = false;
+      return;
+    }
     pagerRef.current?.scrollToOffset({
       offset: activeIndex * width,
       animated: false,
@@ -181,18 +219,17 @@ export default function RoutinesTrackerScreen() {
   );
 
   const handleSelectGroup = useCallback(
-    async (groupId: string, scroll = true) => {
+    (groupId: string) => {
+      const idx = groups.findIndex((g) => g.id === groupId);
+      if (idx < 0) return;
+      suppressNextSnap.current = true;
       setActiveGroupId(groupId);
-      await setSetting(ACTIVE_GROUP_KEY, groupId);
-      if (scroll) {
-        const idx = groups.findIndex((g) => g.id === groupId);
-        if (idx >= 0) {
-          pagerRef.current?.scrollToOffset({
-            offset: idx * width,
-            animated: true,
-          });
-        }
-      }
+      pagerRef.current?.scrollToOffset({
+        offset: idx * width,
+        animated: true,
+      });
+      routinesCache.activeGroupId = groupId;
+      setSetting(ACTIVE_GROUP_KEY, groupId);
     },
     [groups, width]
   );
@@ -202,7 +239,9 @@ export default function RoutinesTrackerScreen() {
       const idx = Math.round(e.nativeEvent.contentOffset.x / width);
       const g = groups[idx];
       if (g && g.id !== activeGroupId) {
+        suppressNextSnap.current = true;
         setActiveGroupId(g.id);
+        routinesCache.activeGroupId = g.id;
         setSetting(ACTIVE_GROUP_KEY, g.id);
       }
     },
@@ -271,39 +310,56 @@ export default function RoutinesTrackerScreen() {
     [reload]
   );
 
+  const closeModal = useCallback(() => {
+    // Dismissing the keyboard before unmounting the Modal contents avoids
+    // a stale-focus state on Android where the next open keeps the IME
+    // anchored on a TextInput that no longer exists in the tree.
+    Keyboard.dismiss();
+    setModal(null);
+  }, []);
+
   const submitModal = useCallback(async () => {
     if (!modal) return;
     if (modal.type === 'create-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
-        setModal(null);
+        closeModal();
         return;
       }
       const g = await createGroup(trimmed, modal.color);
-      setModal(null);
+      closeModal();
       await setSetting(ACTIVE_GROUP_KEY, g.id);
       setActiveGroupId(g.id);
       await reload();
     } else if (modal.type === 'rename-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
-        setModal(null);
+        closeModal();
         return;
       }
       await updateGroup(modal.id, { name: trimmed, color: modal.color });
-      setModal(null);
+      closeModal();
       reload();
     } else if (modal.type === 'create-routine') {
       const trimmed = modal.name.trim();
       if (!trimmed || !activeGroupId) {
-        setModal(null);
+        closeModal();
         return;
       }
       await createRoutine({ groupId: activeGroupId, title: trimmed });
-      setModal(null);
+      closeModal();
       await reload();
     }
-  }, [modal, activeGroupId, reload]);
+  }, [modal, activeGroupId, reload, closeModal]);
+
+  // FlatList ignores prop changes outside `data` unless `extraData` flips.
+  // Adding a routine changes routinesByGroup/stats/completions but leaves
+  // `data` (groups) intact → without this, the freshly added card stays
+  // invisible until something forces a re-render.
+  const pagerExtraData = useMemo(
+    () => ({ routinesByGroup, stats, completions, expandedRoutineIds }),
+    [routinesByGroup, stats, completions, expandedRoutineIds]
+  );
 
   const styles = useMemo(
     () =>
@@ -314,6 +370,15 @@ export default function RoutinesTrackerScreen() {
         },
         scroll: {
           paddingBottom: theme.spacing.xl * 3,
+        },
+        hubTitle: {
+          fontSize: theme.font.xl,
+          fontWeight: '700',
+          color: theme.colors.text,
+          textAlign: 'center',
+          paddingHorizontal: theme.spacing.lg,
+          paddingTop: theme.spacing.md,
+          paddingBottom: theme.spacing.sm,
         },
         tabsWrap: {
           paddingHorizontal: theme.spacing.lg,
@@ -442,7 +507,7 @@ export default function RoutinesTrackerScreen() {
         fab: {
           position: 'absolute',
           right: theme.spacing.lg,
-          bottom: theme.spacing.lg,
+          bottom: theme.spacing.lg * 2 + 40,
           width: 56,
           height: 56,
           borderRadius: 28,
@@ -453,7 +518,8 @@ export default function RoutinesTrackerScreen() {
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.18,
           shadowRadius: 4,
-          elevation: 4,
+          elevation: 8,
+          zIndex: 10,
         },
         modalBackdrop: {
           flex: 1,
@@ -545,14 +611,24 @@ export default function RoutinesTrackerScreen() {
   }, [modal]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Routines',
-          headerBackTitle: 'Retour',
-        }}
-      />
+    <SafeAreaView
+      style={styles.container}
+      edges={hubMode ? ['top', 'bottom'] : ['bottom']}
+    >
+      {!hubMode ? (
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: 'Routines',
+            headerBackTitle: 'Retour',
+            animation: 'none',
+          }}
+        />
+      ) : null}
+
+      {hubMode ? (
+        <Text style={styles.hubTitle}>Routines</Text>
+      ) : null}
 
       <View style={styles.tabsWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -597,6 +673,7 @@ export default function RoutinesTrackerScreen() {
         ref={pagerRef}
         style={{ flex: 1 }}
         data={groups}
+        extraData={pagerExtraData}
         keyExtractor={(g) => g.id}
         horizontal
         pagingEnabled
@@ -735,6 +812,18 @@ export default function RoutinesTrackerScreen() {
         }}
       />
 
+      <DragHandle
+        direction="up"
+        onTrigger={() => {
+          // Always land on TODAY's real date, regardless of when the
+          // screen mounted or what's on the back stack. router.back()
+          // would return to whatever day the user came from.
+          if (onSwipeUp) onSwipeUp();
+          else router.replace(`/calendar/${toDayKey(new Date())}`);
+        }}
+        label="Jour"
+      />
+
       {activeGroupId ? (
         <TouchableOpacity
           onPress={() => setModal({ type: 'create-routine', name: '' })}
@@ -745,27 +834,16 @@ export default function RoutinesTrackerScreen() {
         </TouchableOpacity>
       ) : null}
 
-      <DragHandle
-        direction="up"
-        onTrigger={() => {
-          // Always land on TODAY's real date, regardless of when the
-          // screen mounted or what's on the back stack. router.back()
-          // would return to whatever day the user came from.
-          router.replace(`/calendar/${toDayKey(new Date())}`);
-        }}
-        label="Jour"
-      />
-
       <Modal
         visible={modal !== null}
         transparent
         animationType="slide"
-        onRequestClose={() => setModal(null)}
+        onRequestClose={closeModal}
         statusBarTranslucent
       >
         <TouchableOpacity
           activeOpacity={1}
-          onPress={() => setModal(null)}
+          onPress={closeModal}
           style={styles.modalBackdrop}
         >
           <TouchableOpacity

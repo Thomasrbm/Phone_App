@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { format, parseISO } from 'date-fns';
@@ -110,7 +111,19 @@ export default function SearchScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyText}>Aucun résultat.</Text>
+              {/* POLISH:empty-search */}
+              <Feather
+                name="search"
+                size={44}
+                color={theme.colors.textSubtle}
+                style={{ opacity: 0.45, marginBottom: theme.spacing.md }}
+              />
+              <Text style={styles.emptyText}>
+                {query.trim().length === 0
+                  ? 'Tape pour rechercher'
+                  : 'Aucun résultat'}
+              </Text>
+              {/* /POLISH:empty-search */}
             </View>
           }
           keyboardShouldPersistTaps="handled"
