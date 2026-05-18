@@ -1,8 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { addDays, format, parseISO } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { addDays, parseISO } from 'date-fns';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,17 +15,15 @@ import Animated, {
   Easing,
   FadeIn,
   FadeOut,
-  interpolateColor,
   LinearTransition,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AddTaskInput from '@/components/AddTaskInput';
 import AutoSizeMantra from '@/components/AutoSizeMantra';
+import DayBottomBar from '@/components/DayBottomBar';
+import DayHeader from '@/components/DayHeader';
+import DayProgressCard from '@/components/DayProgressCard';
 import DayRoutinesSection from '@/components/DayRoutinesSection';
-import DragHandle from '@/components/DragHandle';
 import TaskItem from '@/components/TaskItem';
 import type { Routine, RoutineGroup } from '@/db/routines';
 import type { Task } from '@/db/tasks';
@@ -174,56 +171,8 @@ const DayContent = memo(function DayContent({
   const progress = useMemo(() => {
     const total = tasks.length;
     const done = tasks.filter((t) => t.done).length;
-    return { total, done, ratio: total === 0 ? 0 : done / total };
+    return { total, done };
   }, [tasks]);
-
-  // Animate the progress bar so checking a task glides smoothly. The
-  // initial value matches the current ratio (vs starting from 0) so a
-  // DayContent that mounts mid-session doesn't replay the fill from
-  // empty — only real ratio changes animate.
-  const progressRatio = useSharedValue(progress.ratio);
-  useEffect(() => {
-    progressRatio.value = withTiming(progress.ratio, {
-      duration: 80,
-      easing: Easing.out(Easing.quad),
-    });
-  }, [progress.ratio, progressRatio]);
-
-  // Animate scaleX (GPU, no relayout) rather than width %, which forces
-  // Android to relayout the bar every frame and stutters the check
-  // interaction. transformOrigin anchors the scale at the left edge so
-  // the fill grows from 0 → done ratio toward the right.
-  const progressFillStyle = useAnimatedStyle(() => ({
-    transform: [{ scaleX: progressRatio.value }],
-  }));
-
-  // POLISH:all-done-pop — when all tasks transition to done, fade the
-  // progress card background and footer text toward the "done" palette.
-  // No scale (which would leak outside the card); just a colour shift
-  // that stays in the done colours until tasks become incomplete again.
-  const allTasksDone = progress.total > 0 && progress.done === progress.total;
-  const doneTint = useSharedValue(allTasksDone ? 1 : 0);
-  useEffect(() => {
-    doneTint.value = withTiming(allTasksDone ? 1 : 0, {
-      duration: 100,
-      easing: Easing.out(Easing.quad),
-    });
-  }, [allTasksDone, doneTint]);
-  const doneCardStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      doneTint.value,
-      [0, 1],
-      [theme.colors.surfaceAlt, theme.colors.doneSoft]
-    ),
-  }));
-  const doneFooterStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(
-      doneTint.value,
-      [0, 1],
-      [theme.colors.textMuted, theme.colors.done]
-    ),
-  }));
-  // /POLISH:all-done-pop
 
   const goToAdjacentDay = useCallback(
     (delta: number) => {
@@ -358,9 +307,6 @@ const DayContent = memo(function DayContent({
     });
   };
 
-  const title = format(parseISO(date), 'EEEE d MMMM yyyy', { locale: fr });
-  const titleCapped = title.charAt(0).toUpperCase() + title.slice(1);
-
   const openCalendar = useCallback(() => {
     if (onSwipeUp) onSwipeUp();
     else router.push('/calendar');
@@ -397,87 +343,6 @@ const DayContent = memo(function DayContent({
           flexGrow: 1,
           paddingTop: theme.spacing.xl * 2,
           paddingBottom: theme.spacing.xl * 10,
-        },
-        topRow: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: theme.spacing.md,
-          paddingVertical: theme.spacing.sm,
-        },
-        leftActions: {
-          flex: 1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'flex-start',
-        },
-        rightActions: {
-          flex: 1,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-        },
-        centerSlot: {
-          flex: 1,
-          alignItems: 'center',
-        },
-        iconBtn: {
-          width: 40,
-          height: 40,
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-        },
-        badge: {
-          position: 'absolute',
-          top: 4,
-          right: 2,
-          backgroundColor: theme.colors.today,
-          minWidth: 14,
-          height: 14,
-          borderRadius: 7,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: 3,
-        },
-        badgeText: {
-          color: theme.colors.textInverse,
-          fontSize: 9,
-          fontWeight: '700',
-        },
-        cancelBtn: {
-          paddingHorizontal: theme.spacing.md,
-          paddingVertical: theme.spacing.sm,
-        },
-        cancelLink: {
-          color: theme.colors.accent,
-          fontSize: theme.font.md,
-          fontWeight: '500',
-        },
-        selectionTitle: {
-          fontSize: theme.font.lg,
-          fontWeight: '700',
-          color: theme.colors.text,
-        },
-        dateTitle: {
-          fontSize: theme.font.xl,
-          fontWeight: '700',
-          color: theme.colors.text,
-          textAlign: 'center',
-          paddingHorizontal: theme.spacing.lg,
-          paddingTop: theme.spacing.md,
-          paddingBottom: theme.spacing.sm,
-        },
-        bottomBar: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: theme.spacing.lg,
-        },
-        bottomNav: {
-          width: 44,
-          height: 44,
-          alignItems: 'center',
-          justifyContent: 'center',
         },
         searchBar: {
           flexDirection: 'row',
@@ -532,9 +397,6 @@ const DayContent = memo(function DayContent({
           marginRight: theme.spacing.sm,
         },
         // /POLISH:section-dots
-        sectionChevron: {
-          marginLeft: theme.spacing.sm,
-        },
         selectAllBtn: {
           fontSize: theme.font.sm,
           color: '#6940a5',
@@ -609,106 +471,35 @@ const DayContent = memo(function DayContent({
           color: theme.colors.today,
           fontWeight: '600',
         },
-        hubProgressCard: {
-          marginTop: theme.spacing.lg,
-          padding: theme.spacing.lg,
-          borderRadius: theme.radius.lg,
-          backgroundColor: theme.colors.surfaceAlt,
-        },
-        hubProgressHeader: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: theme.spacing.sm,
-        },
-        hubProgressLabel: {
-          fontSize: theme.font.xs,
-          color: theme.colors.textSubtle,
-          fontWeight: '700',
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-        },
-        hubProgressCount: {
-          fontSize: theme.font.lg,
-          color: theme.colors.text,
-          fontWeight: '700',
-        },
-        hubProgressBar: {
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: theme.colors.border,
-          overflow: 'hidden',
-        },
-        hubProgressFill: {
-          height: '100%',
-          width: '100%',
-          backgroundColor: theme.colors.done,
-          borderRadius: 4,
-          transformOrigin: 'left',
-        },
-        hubProgressFooter: {
-          marginTop: theme.spacing.sm,
-          fontSize: theme.font.sm,
-          color: theme.colors.textMuted,
-        },
       }),
     [theme]
   );
 
-  const renderHub = () => {
-    const showProgress = isToday;
-    const remaining = progress.total - progress.done;
-    const allDone = progress.total > 0 && progress.done === progress.total;
-    const footer =
-      progress.total === 0
-        ? "Aucune tâche pour aujourd'hui."
-        : allDone
-          ? 'Journée bouclée ✓'
-          : `${remaining} restante${remaining > 1 ? 's' : ''}`;
-    return (
-      <View style={styles.hub}>
-        {mantra ? (
-          <TouchableOpacity
-            onLongPress={() => router.push('/settings')}
-            delayLongPress={400}
-            activeOpacity={0.7}
-          >
-            <AutoSizeMantra text={`« ${mantra} »`} style={styles.hubMantra} />
-          </TouchableOpacity>
-        ) : null}
-        <DayRoutinesSection
-          groups={groups}
-          activeGroupId={activeGroupId}
-          routinesByGroup={visibleRoutinesByGroup}
-          completedIds={completedIds}
-          onSelectGroup={onSelectGroup}
-          onToggle={handleToggleRoutine}
-          onOpenTracker={openRoutines}
-        />
-        {showProgress ? (
-          // POLISH:all-done-pop — Animated.View wraps the card so its
-          // background tints when allDone.
-          <Animated.View style={[styles.hubProgressCard, doneCardStyle]}>
-            <View style={styles.hubProgressHeader}>
-              <Text style={styles.hubProgressLabel}>Progrès du jour</Text>
-              <Text style={styles.hubProgressCount}>
-                {progress.done}/{progress.total}
-              </Text>
-            </View>
-            <View style={styles.hubProgressBar}>
-              <Animated.View
-                style={[styles.hubProgressFill, progressFillStyle]}
-              />
-            </View>
-            <Animated.Text style={[styles.hubProgressFooter, doneFooterStyle]}>
-              {footer}
-            </Animated.Text>
-          </Animated.View>
-          // /POLISH:all-done-pop
-        ) : null}
-      </View>
-    );
-  };
+  const renderHub = () => (
+    <View style={styles.hub}>
+      {mantra ? (
+        <TouchableOpacity
+          onLongPress={() => router.push('/settings')}
+          delayLongPress={400}
+          activeOpacity={0.7}
+        >
+          <AutoSizeMantra text={`« ${mantra} »`} style={styles.hubMantra} />
+        </TouchableOpacity>
+      ) : null}
+      <DayRoutinesSection
+        groups={groups}
+        activeGroupId={activeGroupId}
+        routinesByGroup={visibleRoutinesByGroup}
+        completedIds={completedIds}
+        onSelectGroup={onSelectGroup}
+        onToggle={handleToggleRoutine}
+        onOpenTracker={openRoutines}
+      />
+      {isToday ? (
+        <DayProgressCard done={progress.done} total={progress.total} />
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={[styles.container, { width }]}>
@@ -717,77 +508,17 @@ const DayContent = memo(function DayContent({
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {selectMode ? (
-            <View style={styles.topRow}>
-              <View style={styles.leftActions}>
-                <TouchableOpacity
-                  onPress={exitSelectMode}
-                  hitSlop={8}
-                  style={styles.cancelBtn}
-                >
-                  <Text style={styles.cancelLink}>Annuler</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.centerSlot}>
-                <Text style={styles.selectionTitle}>
-                  {selectedIds.size} sélectionnée
-                  {selectedIds.size > 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={styles.rightActions} />
-            </View>
-          ) : (
-            <>
-              <View style={styles.topRow}>
-                <View style={styles.leftActions}>
-                  <TouchableOpacity
-                    onPress={() => setSearchOpen((s) => !s)}
-                    style={styles.iconBtn}
-                    hitSlop={8}
-                  >
-                    <Feather
-                      name="search"
-                      size={22}
-                      color={
-                        searchOpen ? theme.colors.accent : theme.colors.text
-                      }
-                    />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.centerSlot} />
-                <View style={styles.rightActions}>
-                  <TouchableOpacity
-                    onPress={() => router.push(`/trash/${date}`)}
-                    style={styles.iconBtn}
-                    hitSlop={8}
-                  >
-                    <Feather
-                      name="trash-2"
-                      size={22}
-                      color={theme.colors.text}
-                    />
-                    {deletedCount > 0 ? (
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{deletedCount}</Text>
-                      </View>
-                    ) : null}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => router.push('/settings')}
-                    style={styles.iconBtn}
-                    hitSlop={8}
-                  >
-                    <Feather
-                      name="settings"
-                      size={22}
-                      color={theme.colors.text}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <Text style={styles.dateTitle}>{titleCapped}</Text>
-            </>
-          )}
+          <DayHeader
+            date={date}
+            selectMode={selectMode}
+            selectedCount={selectedIds.size}
+            searchOpen={searchOpen}
+            deletedCount={deletedCount}
+            onCancelSelect={exitSelectMode}
+            onToggleSearch={() => setSearchOpen((s) => !s)}
+            onOpenTrash={() => router.push(`/trash/${date}`)}
+            onOpenSettings={() => router.push('/settings')}
+          />
 
           {searchOpen && !selectMode ? (
             <Animated.View
@@ -983,37 +714,11 @@ const DayContent = memo(function DayContent({
           )}
         </KeyboardAvoidingView>
         {!selectMode ? (
-          <View style={styles.bottomBar}>
-            <TouchableOpacity
-              onPress={() => goToAdjacentDay(-1)}
-              style={styles.bottomNav}
-              hitSlop={12}
-              activeOpacity={0.55}
-            >
-              <Feather
-                name="chevron-left"
-                size={22}
-                color={theme.colors.textMuted}
-              />
-            </TouchableOpacity>
-            <DragHandle
-              direction="up"
-              onTrigger={openCalendar}
-              label="Calendrier"
-            />
-            <TouchableOpacity
-              onPress={() => goToAdjacentDay(1)}
-              style={styles.bottomNav}
-              hitSlop={12}
-              activeOpacity={0.55}
-            >
-              <Feather
-                name="chevron-right"
-                size={22}
-                color={theme.colors.textMuted}
-              />
-            </TouchableOpacity>
-          </View>
+          <DayBottomBar
+            onPrevDay={() => goToAdjacentDay(-1)}
+            onNextDay={() => goToAdjacentDay(1)}
+            onOpenCalendar={openCalendar}
+          />
         ) : null}
       </SafeAreaView>
     </View>
