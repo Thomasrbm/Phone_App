@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import {
   addMonths,
   addWeeks,
@@ -13,7 +13,7 @@ import {
   startOfWeek,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   type NativeScrollEvent,
@@ -30,17 +30,13 @@ import CalendarWeek from '@/components/CalendarWeek';
 import DragHandle from '@/components/DragHandle';
 import TodayButton from '@/components/TodayButton';
 import ViewMenu, { type CalendarView } from '@/components/ViewMenu';
-import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
+import { EMPTY_COUNTS, taskCountsInRangeView } from '@/data/views';
 import { toDayKey, todayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
 
 const PAGES_BEFORE = 12;
 const PAGES_AFTER = 12;
 const WEEKDAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
-
-// Survive remounts: last fetched counts are shown immediately on re-entry,
-// then refreshed in the background by useFocusEffect.
-let cachedCounts: Record<string, DayCounts> = {};
 
 type Props = {
   // Hub mode: when these are provided, the component skips Stack.Screen
@@ -49,18 +45,12 @@ type Props = {
   hubMode?: boolean;
   onSelectDay?: (dayKey: string) => void;
   onSwipeUp?: () => void;
-  // Hub-only: bumped by the day view after every task mutation so this
-  // screen refreshes its per-day counters. In standalone-route mode
-  // useFocusEffect already covers refresh on focus, so this stays
-  // undefined.
-  tasksVersion?: number;
 };
 
 export default function CalendarScreen({
   hubMode,
   onSelectDay,
   onSwipeUp,
-  tasksVersion,
 }: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -95,10 +85,6 @@ export default function CalendarScreen({
   const [visibleWeek, setVisibleWeek] = useState<Date>(
     startOfWeek(today, { weekStartsOn: 1 })
   );
-  const [counts, setCounts] = useState<Record<string, DayCounts>>(
-    () => cachedCounts
-  );
-
   const range = useMemo(() => {
     const start = startOfWeek(startOfMonth(months[0]), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(months[months.length - 1]), {
@@ -107,40 +93,7 @@ export default function CalendarScreen({
     return { start: toDayKey(start), end: toDayKey(end) };
   }, [months]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      getTaskCountsInRange(range.start, range.end).then((data) => {
-        if (cancelled) return;
-        setCounts(data);
-        cachedCounts = data;
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [range])
-  );
-
-  // Hub mode: in-place refresh whenever the day view signals a mutation.
-  // Skipped on the very first render (tasksVersion === 0 by default) to
-  // avoid double-fetching alongside useFocusEffect on mount.
-  const firstTasksVersion = useRef(true);
-  useEffect(() => {
-    if (tasksVersion === undefined) return;
-    if (firstTasksVersion.current) {
-      firstTasksVersion.current = false;
-      return;
-    }
-    let cancelled = false;
-    getTaskCountsInRange(range.start, range.end).then((data) => {
-      if (cancelled) return;
-      setCounts(data);
-      cachedCounts = data;
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [tasksVersion, range]);
+  const counts = taskCountsInRangeView.useView(range, EMPTY_COUNTS);
 
   const handleDayPress = (date: Date) => {
     const key = toDayKey(date);

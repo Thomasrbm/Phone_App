@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -19,36 +19,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DragHandle from '@/components/DragHandle';
-import RoutineMonthHeatmap from '@/components/RoutineMonthHeatmap';
-import RoutineWeekStrip from '@/components/RoutineWeekStrip';
+import RoutineStatsCard from '@/components/RoutineStatsCard';
+import type { Routine, RoutineGroup } from '@/db/routines';
 import {
   archiveRoutine,
   createGroup,
   createRoutine,
   deleteGroup,
-  getCompletionDaysForRoutine,
-  getRoutineStats,
-  listGroups,
-  listRoutinesByGroup,
   updateGroup,
-  type Routine,
-  type RoutineGroup,
-  type RoutineStats,
-} from '@/db/routines';
+} from '@/data/mutations';
+import { EMPTY_STRUCTURE, routineStructureView } from '@/data/views';
 import { getSetting, setSetting } from '@/db/settings';
 import { TASK_COLORS } from '@/lib/colors';
 import { toDayKey } from '@/lib/date';
-import type { FeatherName } from '@/lib/icons';
-import { routinesCache } from '@/lib/routinesCache';
 import { useTheme } from '@/lib/themeContext';
 
 const ACTIVE_GROUP_KEY = 'routines_active_group';
-
-// Stats + heatmap completions are only consumed by this screen; cache
-// them here (not in the shared cache) so a re-entry skips the per-routine
-// round-trips and renders the cards in their last-known state.
-let cachedStats: Record<string, RoutineStats> = {};
-let cachedCompletions: Record<string, Set<string>> = {};
 
 type ModalState =
   | { type: 'create-group'; name: string; color: string | null }
@@ -77,19 +63,11 @@ type Props = {
   // through onSwipeUp callback instead of router.replace.
   hubMode?: boolean;
   onSwipeUp?: () => void;
-  // Hub mode: called after each structural mutation so the day view
-  // (which keeps its own copy of groups/routines state) refetches.
-  onRoutinesChanged?: () => void;
-  // Hub mode: bumped by the day screen every time a completion is
-  // toggled. We refetch so heatmaps/strips/stats stay in sync.
-  completionsVersion?: number;
 };
 
 export default function RoutinesTrackerScreen({
   hubMode,
   onSwipeUp,
-  onRoutinesChanged,
-  completionsVersion,
 }: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -100,21 +78,27 @@ export default function RoutinesTrackerScreen({
     [today]
   );
 
-  const [groups, setGroups] = useState<RoutineGroup[]>(
-    () => routinesCache.groups
-  );
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(
-    () => routinesCache.activeGroupId
-  );
-  const [routinesByGroup, setRoutinesByGroup] = useState<
-    Record<string, Routine[]>
-  >(() => routinesCache.routinesByGroup);
-  const [stats, setStats] = useState<Record<string, RoutineStats>>(
-    () => cachedStats
-  );
-  const [completions, setCompletions] = useState<Record<string, Set<string>>>(
-    () => cachedCompletions
-  );
+  const structure = routineStructureView.useView('_', EMPTY_STRUCTURE);
+  const { groups, routinesByGroup } = structure;
+
+  // Active group is user preference (SQLite settings), not derived data.
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getSetting(ACTIVE_GROUP_KEY).then((stored) => {
+      if (cancelled) return;
+      setActiveGroupId((prev) => prev ?? stored ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (groups.length === 0) return;
+    if (activeGroupId && groups.some((g) => g.id === activeGroupId)) return;
+    setActiveGroupId(groups[0].id);
+  }, [groups, activeGroupId]);
+
   const [modal, setModal] = useState<ModalState>(null);
   const [kbHeight, setKbHeight] = useState(0);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
@@ -150,53 +134,6 @@ export default function RoutinesTrackerScreen({
     };
   }, []);
 
-  const reload = useCallback(async () => {
-    const [allGroups, storedActive] = await Promise.all([
-      listGroups(),
-      getSetting(ACTIVE_GROUP_KEY),
-    ]);
-    setGroups(allGroups);
-    const fallback = allGroups[0]?.id ?? null;
-    const active =
-      storedActive && allGroups.some((g) => g.id === storedActive)
-        ? storedActive
-        : fallback;
-    setActiveGroupId(active);
-
-    // Load all groups' routines + their stats + completions in parallel.
-    // Keeps the horizontal pager responsive when swiping between groups.
-    const allLists = await Promise.all(
-      allGroups.map((g) => listRoutinesByGroup(g.id))
-    );
-    const routinesMap: Record<string, Routine[]> = {};
-    allGroups.forEach((g, i) => {
-      routinesMap[g.id] = allLists[i];
-    });
-    setRoutinesByGroup(routinesMap);
-    const flat = allLists.flat();
-    const [statsList, completionsList] = await Promise.all([
-      Promise.all(flat.map((r) => getRoutineStats(r.id, todayKey))),
-      Promise.all(
-        flat.map((r) =>
-          getCompletionDaysForRoutine(r.id, monthStart, monthEnd)
-        )
-      ),
-    ]);
-    const statsMap: Record<string, RoutineStats> = {};
-    const compMap: Record<string, Set<string>> = {};
-    flat.forEach((r, i) => {
-      statsMap[r.id] = statsList[i];
-      compMap[r.id] = completionsList[i];
-    });
-    setStats(statsMap);
-    setCompletions(compMap);
-    routinesCache.groups = allGroups;
-    routinesCache.activeGroupId = active;
-    routinesCache.routinesByGroup = routinesMap;
-    cachedStats = statsMap;
-    cachedCompletions = compMap;
-  }, [todayKey, monthStart, monthEnd]);
-
   const activeIndex = useMemo(() => {
     if (!activeGroupId) return 0;
     const i = groups.findIndex((g) => g.id === activeGroupId);
@@ -220,25 +157,6 @@ export default function RoutinesTrackerScreen({
     });
   }, [activeIndex, width, groups.length]);
 
-  useFocusEffect(
-    useCallback(() => {
-      reload();
-    }, [reload])
-  );
-
-  // Hub mode: useFocusEffect never re-fires (this screen stays mounted),
-  // so when the user toggles a routine from the day view the heatmaps
-  // here would stay frozen. The hub bumps completionsVersion → refetch.
-  const firstCompletionsVersion = useRef(true);
-  useEffect(() => {
-    if (completionsVersion === undefined) return;
-    if (firstCompletionsVersion.current) {
-      firstCompletionsVersion.current = false;
-      return;
-    }
-    reload();
-  }, [completionsVersion, reload]);
-
   const handleSelectGroup = useCallback(
     (groupId: string) => {
       const idx = groups.findIndex((g) => g.id === groupId);
@@ -249,7 +167,6 @@ export default function RoutinesTrackerScreen({
         offset: idx * width,
         animated: true,
       });
-      routinesCache.activeGroupId = groupId;
       setSetting(ACTIVE_GROUP_KEY, groupId);
     },
     [groups, width]
@@ -262,7 +179,6 @@ export default function RoutinesTrackerScreen({
       if (g && g.id !== activeGroupId) {
         suppressNextSnap.current = true;
         setActiveGroupId(g.id);
-        routinesCache.activeGroupId = g.id;
         setSetting(ACTIVE_GROUP_KEY, g.id);
       }
     },
@@ -297,10 +213,7 @@ export default function RoutinesTrackerScreen({
                     ? 'Tu dois garder au moins un groupe.'
                     : `Ce groupe contient ${res.routineCount} routine${res.routineCount > 1 ? 's' : ''}. Déplace ou archive-les d'abord.`
                 );
-                return;
               }
-              await reload();
-              onRoutinesChanged?.();
             },
           },
           { text: 'Annuler', style: 'cancel' },
@@ -308,30 +221,23 @@ export default function RoutinesTrackerScreen({
         { cancelable: true }
       );
     },
-    [reload, onRoutinesChanged]
+    []
   );
 
-  const handleArchiveRoutine = useCallback(
-    (routine: Routine) => {
-      Alert.alert(
-        'Archiver cette routine ?',
-        `« ${routine.title} » ne s'affichera plus, mais les complétions passées sont conservées dans les stats.`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Archiver',
-            style: 'destructive',
-            onPress: async () => {
-              await archiveRoutine(routine.id);
-              await reload();
-              onRoutinesChanged?.();
-            },
-          },
-        ]
-      );
-    },
-    [reload, onRoutinesChanged]
-  );
+  const handleArchiveRoutine = useCallback((routine: Routine) => {
+    Alert.alert(
+      'Archiver cette routine ?',
+      `« ${routine.title} » ne s'affichera plus, mais les complétions passées sont conservées dans les stats.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Archiver',
+          style: 'destructive',
+          onPress: () => archiveRoutine(routine.id),
+        },
+      ]
+    );
+  }, []);
 
   const closeModal = useCallback(() => {
     // Dismissing the keyboard before unmounting the Modal contents avoids
@@ -353,8 +259,6 @@ export default function RoutinesTrackerScreen({
       closeModal();
       await setSetting(ACTIVE_GROUP_KEY, g.id);
       setActiveGroupId(g.id);
-      await reload();
-      onRoutinesChanged?.();
     } else if (modal.type === 'rename-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
@@ -363,8 +267,6 @@ export default function RoutinesTrackerScreen({
       }
       await updateGroup(modal.id, { name: trimmed, color: modal.color });
       closeModal();
-      await reload();
-      onRoutinesChanged?.();
     } else if (modal.type === 'create-routine') {
       const trimmed = modal.name.trim();
       if (!trimmed || !activeGroupId) {
@@ -373,18 +275,17 @@ export default function RoutinesTrackerScreen({
       }
       await createRoutine({ groupId: activeGroupId, title: trimmed });
       closeModal();
-      await reload();
-      onRoutinesChanged?.();
     }
-  }, [modal, activeGroupId, reload, closeModal, onRoutinesChanged]);
+  }, [modal, activeGroupId, closeModal]);
 
   // FlatList ignores prop changes outside `data` unless `extraData` flips.
-  // Adding a routine changes routinesByGroup/stats/completions but leaves
-  // `data` (groups) intact → without this, the freshly added card stays
-  // invisible until something forces a re-render.
+  // Adding a routine changes routinesByGroup but leaves `data` (groups)
+  // intact → without this, the freshly added card stays invisible until
+  // something forces a re-render. Cards subscribe to their own stats /
+  // completions, so those don't need to participate in extraData.
   const pagerExtraData = useMemo(
-    () => ({ routinesByGroup, stats, completions, expandedRoutineIds }),
-    [routinesByGroup, stats, completions, expandedRoutineIds]
+    () => ({ routinesByGroup, expandedRoutineIds }),
+    [routinesByGroup, expandedRoutineIds]
   );
 
   const styles = useMemo(
@@ -453,68 +354,6 @@ export default function RoutinesTrackerScreen({
           paddingHorizontal: theme.spacing.lg,
           paddingTop: theme.spacing.lg,
           paddingBottom: theme.spacing.sm,
-        },
-        card: {
-          marginHorizontal: theme.spacing.lg,
-          marginBottom: theme.spacing.md,
-          padding: theme.spacing.lg,
-          borderRadius: theme.radius.lg,
-          backgroundColor: theme.colors.surfaceAlt,
-        },
-        cardHeader: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          marginBottom: theme.spacing.sm,
-        },
-        colorDot: {
-          width: 10,
-          height: 10,
-          borderRadius: 5,
-          marginRight: theme.spacing.sm,
-        },
-        cardIcon: {
-          width: 22,
-          height: 22,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: theme.spacing.sm,
-        },
-        cardFooter: {
-          marginTop: theme.spacing.sm,
-          alignItems: 'center',
-        },
-        cardTitle: {
-          flex: 1,
-          fontSize: theme.font.lg,
-          fontWeight: '700',
-          color: theme.colors.text,
-        },
-        archiveBtn: {
-          padding: 6,
-        },
-        statsRow: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          marginBottom: theme.spacing.xs,
-        },
-        statBlock: {
-          flex: 1,
-        },
-        statLabel: {
-          fontSize: theme.font.xs,
-          color: theme.colors.textSubtle,
-          fontWeight: '700',
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-        },
-        statValue: {
-          fontSize: theme.font.xl,
-          fontWeight: '800',
-          color: theme.colors.text,
-          marginTop: 2,
-        },
-        statValueAccent: {
-          color: theme.colors.routine,
         },
         empty: {
           padding: theme.spacing.xl,
@@ -729,109 +568,22 @@ export default function RoutinesTrackerScreen({
                   </Text>
                 </View>
               ) : (
-                groupRoutines.map((r) => {
-                  const s = stats[r.id];
-                  const c = completions[r.id] ?? new Set<string>();
-                  const iconName = (r.icon as FeatherName | null) ?? null;
-                  const expanded = expandedRoutineIds.has(r.id);
-                  return (
-                    <TouchableOpacity
-                      key={r.id}
-                      onPress={() => toggleExpanded(r.id)}
-                      activeOpacity={0.7}
-                      style={styles.card}
-                    >
-                      <View style={styles.cardHeader}>
-                        {iconName ? (
-                          <View style={styles.cardIcon}>
-                            <Feather
-                              name={iconName}
-                              size={18}
-                              color={groupColor}
-                            />
-                          </View>
-                        ) : (
-                          <View
-                            style={[
-                              styles.colorDot,
-                              { backgroundColor: groupColor },
-                            ]}
-                          />
-                        )}
-                        <Text style={styles.cardTitle}>{r.title}</Text>
-                        <TouchableOpacity
-                          onPress={() => router.push(`/routines/${r.id}`)}
-                          hitSlop={8}
-                          style={styles.archiveBtn}
-                        >
-                          <Feather
-                            name="edit-2"
-                            size={16}
-                            color={theme.colors.textMuted}
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleArchiveRoutine(r)}
-                          hitSlop={8}
-                          style={styles.archiveBtn}
-                        >
-                          <Feather
-                            name="archive"
-                            size={16}
-                            color={theme.colors.textMuted}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.statsRow}>
-                        <View style={styles.statBlock}>
-                          <Text style={styles.statLabel}>Streak</Text>
-                          <Text
-                            style={[
-                              styles.statValue,
-                              { color: groupColor },
-                            ]}
-                          >
-                            {s?.streak ?? 0}j
-                          </Text>
-                        </View>
-                        <View style={styles.statBlock}>
-                          <Text style={styles.statLabel}>30 derniers j.</Text>
-                          <Text style={styles.statValue}>
-                            {s ? Math.round(s.ratio30d * 100) : 0}%
-                          </Text>
-                        </View>
-                        <View style={styles.statBlock}>
-                          <Text style={styles.statLabel}>Complétions</Text>
-                          <Text style={styles.statValue}>
-                            {s?.completed30d ?? 0}
-                          </Text>
-                        </View>
-                      </View>
-                      {expanded ? (
-                        <RoutineMonthHeatmap
-                          year={today.getFullYear()}
-                          month={today.getMonth()}
-                          completedDays={c}
-                          color={groupColor}
-                          todayKey={todayKey}
-                        />
-                      ) : (
-                        <RoutineWeekStrip
-                          todayKey={todayKey}
-                          completedDays={c}
-                          color={groupColor}
-                        />
-                      )}
-                      <View style={styles.cardFooter}>
-                        <Feather
-                          name={expanded ? 'chevron-up' : 'chevron-down'}
-                          size={16}
-                          color={theme.colors.textMuted}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
+                groupRoutines.map((r) => (
+                  <RoutineStatsCard
+                    key={r.id}
+                    routine={r}
+                    groupColor={groupColor}
+                    todayKey={todayKey}
+                    monthStart={monthStart}
+                    monthEnd={monthEnd}
+                    todayYear={today.getFullYear()}
+                    todayMonth={today.getMonth()}
+                    expanded={expandedRoutineIds.has(r.id)}
+                    onToggleExpanded={toggleExpanded}
+                    onEdit={(id) => router.push(`/routines/${id}`)}
+                    onArchive={handleArchiveRoutine}
+                  />
+                ))
               )}
             </ScrollView>
           );

@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -20,6 +20,11 @@ import { todayKey } from '@/lib/date';
 // landing screen). Month + routines mount the first time they are
 // activated, then stay alive. App start stays as cheap as before, but
 // every transition after the first is free.
+//
+// Cross-view data freshness is handled by @/data/views — each screen
+// subscribes to the views it consumes and the mutations in
+// @/data/mutations invalidate the right entries. The Hub doesn't
+// orchestrate refetches anymore.
 
 type ActiveView = 'month' | 'day' | 'routines';
 
@@ -29,38 +34,6 @@ export default function Hub() {
   const [mounted, setMounted] = useState<Set<ActiveView>>(
     () => new Set(['day'])
   );
-  // The month view refetches its per-day counts only when the user
-  // actually switches to it AND there has been at least one mutation
-  // since the last refetch. Firing on every toggle would re-run a
-  // ~25-month SQL aggregate per check, which lags the day screen.
-  const [tasksVersion, setTasksVersion] = useState(0);
-  const tasksDirty = useRef(false);
-  const markTasksDirty = useCallback(() => {
-    tasksDirty.current = true;
-  }, []);
-  const flushTasksDirty = useCallback(() => {
-    if (tasksDirty.current) {
-      tasksDirty.current = false;
-      setTasksVersion((v) => v + 1);
-    }
-  }, []);
-  // Routines structure changes (group/routine create/delete/rename/archive)
-  // need to reach the day view immediately. Unlike tasksVersion (lazy:
-  // flushed when month becomes active), this is bumped synchronously
-  // because the day view is the consumer and is typically visible right
-  // after the user finishes editing on the routines screen.
-  const [routinesVersion, setRoutinesVersion] = useState(0);
-  const bumpRoutines = useCallback(() => {
-    setRoutinesVersion((v) => v + 1);
-  }, []);
-  // Same idea in the reverse direction: when the day view toggles a
-  // completion, the routines screen needs to refresh its heatmaps /
-  // strips / stats. Kept separate from routinesVersion so each side
-  // only refetches the data it actually consumes.
-  const [routineCompletionsVersion, setRoutineCompletionsVersion] = useState(0);
-  const bumpRoutineCompletions = useCallback(() => {
-    setRoutineCompletionsVersion((v) => v + 1);
-  }, []);
 
   const ensureMounted = useCallback((v: ActiveView) => {
     setMounted((prev) => {
@@ -74,16 +47,12 @@ export default function Hub() {
   const goToMonth = useCallback(() => {
     ensureMounted('month');
     setView('month');
-    flushTasksDirty();
-  }, [ensureMounted, flushTasksDirty]);
+  }, [ensureMounted]);
 
-  const goToDay = useCallback(
-    (d?: string) => {
-      if (d) setDate(d);
-      setView('day');
-    },
-    []
-  );
+  const goToDay = useCallback((d?: string) => {
+    if (d) setDate(d);
+    setView('day');
+  }, []);
 
   const goToRoutines = useCallback(() => {
     ensureMounted('routines');
@@ -134,7 +103,6 @@ export default function Hub() {
             hubMode
             onSelectDay={(d) => goToDay(d)}
             onSwipeUp={goToToday}
-            tasksVersion={tasksVersion}
           />
         ) : null}
       </Animated.View>
@@ -153,9 +121,6 @@ export default function Hub() {
           onChangeDate={setDate}
           onSwipeUp={goToMonth}
           onOpenRoutines={goToRoutines}
-          onTasksChanged={markTasksDirty}
-          routinesVersion={routinesVersion}
-          onRoutineToggled={bumpRoutineCompletions}
         />
       </Animated.View>
 
@@ -168,12 +133,7 @@ export default function Hub() {
         pointerEvents={view === 'routines' ? 'auto' : 'none'}
       >
         {mounted.has('routines') ? (
-          <RoutinesScreen
-            hubMode
-            onSwipeUp={() => goToDay()}
-            onRoutinesChanged={bumpRoutines}
-            completionsVersion={routineCompletionsVersion}
-          />
+          <RoutinesScreen hubMode onSwipeUp={() => goToDay()} />
         ) : null}
       </Animated.View>
     </View>

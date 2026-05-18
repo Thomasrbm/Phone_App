@@ -46,40 +46,33 @@ import AutoSizeMantra from '@/components/AutoSizeMantra';
 import DayRoutinesSection from '@/components/DayRoutinesSection';
 import DragHandle from '@/components/DragHandle';
 import TaskItem from '@/components/TaskItem';
-import {
-  getCompletionsForDay,
-  listGroups,
-  listRoutinesByGroup,
-  setCompletion,
-  type Routine,
-  type RoutineGroup,
-} from '@/db/routines';
+import type { Routine, RoutineGroup } from '@/db/routines';
 import { getSetting, setSetting } from '@/db/settings';
+import type { Task } from '@/db/tasks';
 import {
   createTask,
-  listDeletedTasksByDay,
-  listTasksByDay,
+  setCompletion,
   softDeleteTask,
   toggleTaskDone,
-  type Task,
-} from '@/db/tasks';
+} from '@/data/mutations';
+import {
+  completionsByDayView,
+  deletedTasksByDayView,
+  EMPTY_COMPLETIONS,
+  EMPTY_STRUCTURE,
+  EMPTY_TASKS,
+  routineStructureView,
+  tasksByDayView,
+} from '@/data/views';
 import { toDayKey, todayKey } from '@/lib/date';
 import {
   getMantras,
   getMantrasEnabled,
   pickMantraForDay,
 } from '@/lib/mantras';
-import { routinesCache } from '@/lib/routinesCache';
 import { useTheme } from '@/lib/themeContext';
 
 const ACTIVE_GROUP_KEY = 'routines_active_group';
-
-// Per-day caches: when the user re-enters a day they've visited in the
-// session, the screen renders from cache immediately and the focus
-// reload refreshes in the background. Keys are dayKey strings.
-const cachedTasksByDay: Record<string, Task[]> = {};
-const cachedDeletedCountByDay: Record<string, number> = {};
-const cachedCompletedIdsByDay: Record<string, Set<string>> = {};
 
 type SectionKey = 'todo' | 'done';
 
@@ -118,17 +111,6 @@ type DayScreenProps = {
   onChangeDate?: (date: string) => void;
   onSwipeUp?: () => void;
   onOpenRoutines?: () => void;
-  // Called after any task mutation so sibling views in the hub (notably
-  // the month view) know they need to refetch derived data.
-  onTasksChanged?: () => void;
-  // Hub mode: bumped by the routines screen after any structural change
-  // (group/routine create/delete/rename/archive). useFocusEffect doesn't
-  // fire in hub mode (this screen never loses focus, just opacity), so
-  // without this the routines section would stay stale.
-  routinesVersion?: number;
-  // Hub mode reverse direction: called after each completion toggle so
-  // the routines screen (heatmaps/strips/stats) can refresh.
-  onRoutineToggled?: () => void;
 };
 
 export default function DayScreen({
@@ -137,9 +119,6 @@ export default function DayScreen({
   onChangeDate,
   onSwipeUp,
   onOpenRoutines,
-  onTasksChanged,
-  routinesVersion,
-  onRoutineToggled,
 }: DayScreenProps = {}) {
   const { theme } = useTheme();
   const routeParams = useLocalSearchParams<{ date: string }>();
@@ -149,83 +128,36 @@ export default function DayScreen({
   const pagerRef = useRef<PagerView>(null);
   const isInternalNav = useRef(false);
 
-  // Routines data lives at the screen level: groups, the active group
-  // selection, and all routines per group are shared across every
-  // mounted DayContent. Previously each DayContent fetched its own
-  // copy, which meant N alive DayContents × the same SQL N times +
-  // a refetch on every screen refocus (e.g. returning from /routines).
-  // Hoisting collapses that to a single fetch per focus.
-  const [groups, setGroups] = useState<RoutineGroup[]>(
-    () => routinesCache.groups
-  );
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(
-    () => routinesCache.activeGroupId
-  );
-  const [routinesByGroup, setRoutinesByGroup] = useState<
-    Record<string, Routine[]>
-  >(() => routinesCache.routinesByGroup);
+  // Routines structure (groups + routines-per-group) is shared across
+  // every mounted DayContent. The view layer caches the result so
+  // re-entry is instant; invalidation fires automatically whenever a
+  // mutation runs through @/data/mutations.
+  const structure = routineStructureView.useView('_', EMPTY_STRUCTURE);
+  const { groups, routinesByGroup } = structure;
 
-  const loadRoutinesData = useCallback(
-    async (signal: { cancelled: boolean }) => {
-      const [allGroups, storedActive] = await Promise.all([
-        listGroups(),
-        getSetting(ACTIVE_GROUP_KEY),
-      ]);
-      if (signal.cancelled) return;
-      setGroups(allGroups);
-      const fallback = allGroups[0]?.id ?? null;
-      const active =
-        storedActive && allGroups.some((g) => g.id === storedActive)
-          ? storedActive
-          : fallback;
-      setActiveGroupId(active);
-      const lists = await Promise.all(
-        allGroups.map((g) => listRoutinesByGroup(g.id))
-      );
-      if (signal.cancelled) return;
-      const map: Record<string, Routine[]> = {};
-      allGroups.forEach((g, i) => {
-        map[g.id] = lists[i];
-      });
-      setRoutinesByGroup(map);
-      routinesCache.groups = allGroups;
-      routinesCache.activeGroupId = active;
-      routinesCache.routinesByGroup = map;
-    },
-    []
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      const signal = { cancelled: false };
-      loadRoutinesData(signal);
-      return () => {
-        signal.cancelled = true;
-      };
-    }, [loadRoutinesData])
-  );
-
-  // Hub mode bridge: useFocusEffect never re-fires here (the hub keeps
-  // all views mounted), so a structural change made on the routines
-  // screen would leave this screen's state stale. The hub bumps
-  // routinesVersion after each such change → we refetch.
-  const firstRoutinesVersion = useRef(true);
+  // Active group is user preference (stored in SQLite settings), not
+  // derived data, so it stays as local state with manual persistence.
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   useEffect(() => {
-    if (routinesVersion === undefined) return;
-    if (firstRoutinesVersion.current) {
-      firstRoutinesVersion.current = false;
-      return;
-    }
-    const signal = { cancelled: false };
-    loadRoutinesData(signal);
+    let cancelled = false;
+    getSetting(ACTIVE_GROUP_KEY).then((stored) => {
+      if (cancelled) return;
+      setActiveGroupId((prev) => prev ?? stored ?? null);
+    });
     return () => {
-      signal.cancelled = true;
+      cancelled = true;
     };
-  }, [routinesVersion, loadRoutinesData]);
+  }, []);
+  // Fall back to the first group when the stored value is missing /
+  // refers to a deleted group.
+  useEffect(() => {
+    if (groups.length === 0) return;
+    if (activeGroupId && groups.some((g) => g.id === activeGroupId)) return;
+    setActiveGroupId(groups[0].id);
+  }, [groups, activeGroupId]);
 
   const handleSelectGroup = useCallback((groupId: string) => {
     setActiveGroupId(groupId);
-    routinesCache.activeGroupId = groupId;
     setSetting(ACTIVE_GROUP_KEY, groupId);
   }, []);
 
@@ -364,8 +296,6 @@ export default function DayScreen({
                 onOpenRoutines={onOpenRoutines}
                 onChangeDate={onChangeDate}
                 onChangeDateAnimated={changeDateAnimated}
-                onTasksChanged={onTasksChanged}
-                onRoutineToggled={onRoutineToggled}
               />
             ) : null}
           </View>
@@ -453,8 +383,6 @@ type DayContentProps = {
   // used by the chevrons + "Aujourd'hui" button so the day change feels
   // like a swipe instead of an instant cut.
   onChangeDateAnimated?: (date: string) => void;
-  onTasksChanged?: () => void;
-  onRoutineToggled?: () => void;
 };
 
 const DayContent = memo(function DayContent({
@@ -468,64 +396,23 @@ const DayContent = memo(function DayContent({
   onOpenRoutines,
   onChangeDate,
   onChangeDateAnimated,
-  onTasksChanged,
-  onRoutineToggled,
 }: DayContentProps) {
   const { theme } = useTheme();
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>(
-    () => cachedTasksByDay[date] ?? []
-  );
-  const [deletedCount, setDeletedCount] = useState<number>(
-    () => cachedDeletedCountByDay[date] ?? 0
-  );
+  const tasks = tasksByDayView.useView(date, EMPTY_TASKS);
+  const deletedTasks = deletedTasksByDayView.useView(date, EMPTY_TASKS);
+  const deletedCount = deletedTasks.length;
+  const completedIds = completionsByDayView.useView(date, EMPTY_COMPLETIONS);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mantra, setMantra] = useState<string>('');
-  const [completedIds, setCompletedIds] = useState<Set<string>>(
-    () => cachedCompletedIdsByDay[date] ?? new Set()
-  );
   const [collapsedSections, setCollapsedSections] = useState<
     Record<SectionKey, boolean>
   >({ todo: false, done: false });
 
   const selectMode = selectedIds.size > 0;
   const isToday = useMemo(() => date === todayKey(), [date]);
-
-  const reload = useCallback(async () => {
-    const [active, removed] = await Promise.all([
-      listTasksByDay(date),
-      listDeletedTasksByDay(date),
-    ]);
-    setTasks(active);
-    setDeletedCount(removed.length);
-    cachedTasksByDay[date] = active;
-    cachedDeletedCountByDay[date] = removed.length;
-  }, [date]);
-
-  useFocusEffect(
-    useCallback(() => {
-      reload();
-    }, [reload])
-  );
-
-  // Day-specific data only — groups / routinesByGroup / activeGroupId
-  // are shared via props from DayScreen. completedIds still belongs
-  // here because it varies per day.
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      getCompletionsForDay(date).then((c) => {
-        if (cancelled) return;
-        setCompletedIds(c);
-        cachedCompletedIdsByDay[date] = c;
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [date])
-  );
 
   const toggleSection = useCallback((key: SectionKey) => {
     // Removing/adding rows from the items array triggers the FlatList's
@@ -536,19 +423,13 @@ const DayContent = memo(function DayContent({
   }, []);
 
   const handleToggleRoutine = useCallback(
-    async (routineId: string, nextDone: boolean) => {
-      // Optimistic update so the row feels instant.
-      setCompletedIds((prev) => {
-        const next = new Set(prev);
-        if (nextDone) next.add(routineId);
-        else next.delete(routineId);
-        cachedCompletedIdsByDay[date] = next;
-        return next;
-      });
-      await setCompletion(routineId, date, nextDone);
-      onRoutineToggled?.();
+    (routineId: string, nextDone: boolean) => {
+      // setCompletion does the optimistic update internally via the view
+      // layer, then writes to SQL, then invalidates — sibling subscribers
+      // (the routines screen's heatmaps/stats) refresh automatically.
+      setCompletion(routineId, date, nextDone);
     },
-    [date, onRoutineToggled]
+    [date]
   );
 
   // A routine only appears on days at or after its creation day.
@@ -701,41 +582,25 @@ const DayContent = memo(function DayContent({
   }, [filtered, collapsedSections]);
 
   const handleAdd = useCallback(
-    async (params: {
+    (params: {
       title: string;
       description: string | null;
       color: string | null;
     }) => {
-      await createTask({ day: date, ...params });
-      reload();
-      onTasksChanged?.();
+      // mutations.createTask writes + invalidates; the view layer
+      // re-fetches and re-renders this component with the new task.
+      createTask({ day: date, ...params });
     },
-    [date, reload, onTasksChanged]
+    [date]
   );
 
-  // Optimistic + no reload: a toggle never changes the set of tasks
-  // for the day (no new id, no removed id, same order by created_at),
-  // so the optimistic local state matches what a reload would return.
-  // Skipping the reload removes a round-trip and a second re-render.
   const handleToggle = useCallback(
-    async (id: string, done: boolean) => {
-      setTasks((prev) => {
-        const next = prev.map((t) =>
-          t.id === id
-            ? {
-                ...t,
-                done,
-                doneAt: done ? new Date().toISOString() : null,
-              }
-            : t
-        );
-        cachedTasksByDay[date] = next;
-        return next;
-      });
-      await toggleTaskDone(id, done);
-      onTasksChanged?.();
+    (id: string, done: boolean) => {
+      // Optimistic flip lives in mutations.toggleTaskDone — same shape
+      // as before, just no manual setTasks / cache write.
+      toggleTaskDone(id, date, done);
     },
-    [date, onTasksChanged]
+    [date]
   );
 
   const handleTaskPress = useCallback(
@@ -761,22 +626,18 @@ const DayContent = memo(function DayContent({
   const exitSelectMode = () => setSelectedIds(new Set());
 
   const handleSwipeDelete = useCallback(
-    async (id: string) => {
-      await softDeleteTask(id);
-      reload();
-      onTasksChanged?.();
+    (id: string) => {
+      softDeleteTask(id, date);
     },
-    [reload, onTasksChanged]
+    [date]
   );
 
   const deleteSelected = async () => {
     const ids = Array.from(selectedIds);
-    for (const id of ids) {
-      await softDeleteTask(id);
-    }
     setSelectedIds(new Set());
-    reload();
-    onTasksChanged?.();
+    for (const id of ids) {
+      await softDeleteTask(id, date);
+    }
   };
 
   const selectAllInSection = (ids: string[]) => {

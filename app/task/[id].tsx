@@ -29,12 +29,8 @@ import IconPicker from '@/components/IconPicker';
 import { TASK_COLORS } from '@/lib/colors';
 import type { FeatherName } from '@/lib/icons';
 import { useTheme } from '@/lib/themeContext';
-import {
-  getTaskById,
-  softDeleteTask,
-  updateTask,
-  type Task,
-} from '@/db/tasks';
+import { getTaskById, type Task } from '@/db/tasks';
+import { softDeleteTask, updateTask } from '@/data/mutations';
 
 export default function TaskEditScreen() {
   const { theme } = useTheme();
@@ -68,13 +64,13 @@ export default function TaskEditScreen() {
   useEffect(() => {
     if (!task) return;
     if (color === task.color) return;
-    updateTask(id, { color });
+    updateTask(id, task.day, { color });
   }, [color, task, id]);
 
   useEffect(() => {
     if (!task) return;
     if (icon === task.icon) return;
-    updateTask(id, { icon });
+    updateTask(id, task.day, { icon });
   }, [icon, task, id]);
 
   useEffect(() => {
@@ -93,19 +89,19 @@ export default function TaskEditScreen() {
     if (!task) return;
     const trimmed = title.trim();
     if (!trimmed || trimmed === task.title) return;
-    updateTask(id, { title: trimmed });
+    updateTask(id, task.day, { title: trimmed });
   };
 
   const saveDescription = () => {
     if (!task) return;
     const next = description.trim() === '' ? null : description;
     if (next === task.description) return;
-    updateTask(id, { description: next });
+    updateTask(id, task.day, { description: next });
   };
 
   const handleDelete = async () => {
     if (!task) return;
-    await softDeleteTask(id);
+    await softDeleteTask(id, task.day);
     router.back();
   };
 
