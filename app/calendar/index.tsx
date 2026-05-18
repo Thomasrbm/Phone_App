@@ -165,16 +165,15 @@ export default function CalendarScreen({
   };
 
   const goToToday = () => {
+    // scrollToIndex with animated:true silently fails when the target is
+    // outside the currently rendered window (windowSize: 3). scrollToOffset
+    // doesn't have that constraint — pages are uniform width thanks to
+    // getItemLayout, so the offset math is exact regardless of windowing.
+    const offset = initialIndex * width;
     if (view === 'month') {
-      monthListRef.current?.scrollToIndex({
-        index: initialIndex,
-        animated: true,
-      });
+      monthListRef.current?.scrollToOffset({ offset, animated: true });
     } else {
-      weekListRef.current?.scrollToIndex({
-        index: initialIndex,
-        animated: true,
-      });
+      weekListRef.current?.scrollToOffset({ offset, animated: true });
     }
   };
 
