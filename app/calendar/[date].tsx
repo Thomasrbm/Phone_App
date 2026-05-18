@@ -7,12 +7,10 @@ import PagerView, {
 } from 'react-native-pager-view';
 import DayContent from '@/components/DayContent';
 import FarJumpOverlay from '@/components/FarJumpOverlay';
-import { getSetting, setSetting } from '@/db/settings';
 import { EMPTY_STRUCTURE, routineStructureView } from '@/data/views';
+import { useActiveGroupId } from '@/hooks/useActiveGroupId';
 import { toDayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
-
-const ACTIVE_GROUP_KEY = 'routines_active_group';
 
 // Fixed window of dates anchored on the initial URL date. The native
 // pager scrolls within this list, but only the pages near the active
@@ -60,31 +58,7 @@ export default function DayScreen({
   const structure = routineStructureView.useView('_', EMPTY_STRUCTURE);
   const { groups, routinesByGroup } = structure;
 
-  // Active group is user preference (stored in SQLite settings), not
-  // derived data, so it stays as local state with manual persistence.
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getSetting(ACTIVE_GROUP_KEY).then((stored) => {
-      if (cancelled) return;
-      setActiveGroupId((prev) => prev ?? stored ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  // Fall back to the first group when the stored value is missing /
-  // refers to a deleted group.
-  useEffect(() => {
-    if (groups.length === 0) return;
-    if (activeGroupId && groups.some((g) => g.id === activeGroupId)) return;
-    setActiveGroupId(groups[0].id);
-  }, [groups, activeGroupId]);
-
-  const handleSelectGroup = useCallback((groupId: string) => {
-    setActiveGroupId(groupId);
-    setSetting(ACTIVE_GROUP_KEY, groupId);
-  }, []);
+  const [activeGroupId, handleSelectGroup] = useActiveGroupId(groups);
 
   // The ±30 day pager window is anchored on a date. In standalone-route
   // mode this anchor never changes (the screen remounts when navigating

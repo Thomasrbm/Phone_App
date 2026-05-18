@@ -30,11 +30,9 @@ import {
   updateGroup,
 } from '@/data/mutations';
 import { EMPTY_STRUCTURE, routineStructureView } from '@/data/views';
-import { getSetting, setSetting } from '@/db/settings';
+import { useActiveGroupId } from '@/hooks/useActiveGroupId';
 import { toDayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
-
-const ACTIVE_GROUP_KEY = 'routines_active_group';
 
 function monthBounds(d: Date): { start: string; end: string } {
   const y = d.getFullYear();
@@ -70,23 +68,7 @@ export default function RoutinesTrackerScreen({
   const structure = routineStructureView.useView('_', EMPTY_STRUCTURE);
   const { groups, routinesByGroup } = structure;
 
-  // Active group is user preference (SQLite settings), not derived data.
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    getSetting(ACTIVE_GROUP_KEY).then((stored) => {
-      if (cancelled) return;
-      setActiveGroupId((prev) => prev ?? stored ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  useEffect(() => {
-    if (groups.length === 0) return;
-    if (activeGroupId && groups.some((g) => g.id === activeGroupId)) return;
-    setActiveGroupId(groups[0].id);
-  }, [groups, activeGroupId]);
+  const [activeGroupId, selectActiveGroup] = useActiveGroupId(groups);
 
   const [modal, setModal] = useState<RoutinesModalState>(null);
   const [kbHeight, setKbHeight] = useState(0);
@@ -130,7 +112,7 @@ export default function RoutinesTrackerScreen({
   }, [groups, activeGroupId]);
 
   // Tapping a chip drives the scroll itself (animated). Without this
-  // guard, setActiveGroupId would also re-fire the useEffect below and
+  // guard, selectActiveGroup would also re-fire the useEffect below and
   // snap the pager (animated:false) before the animation could run —
   // visible as a "jump" right after the tap.
   const suppressNextSnap = useRef(false);
@@ -151,14 +133,13 @@ export default function RoutinesTrackerScreen({
       const idx = groups.findIndex((g) => g.id === groupId);
       if (idx < 0) return;
       suppressNextSnap.current = true;
-      setActiveGroupId(groupId);
+      selectActiveGroup(groupId);
       pagerRef.current?.scrollToOffset({
         offset: idx * width,
         animated: true,
       });
-      setSetting(ACTIVE_GROUP_KEY, groupId);
     },
-    [groups, width]
+    [groups, width, selectActiveGroup]
   );
 
   const handlePagerEnd = useCallback(
@@ -167,11 +148,10 @@ export default function RoutinesTrackerScreen({
       const g = groups[idx];
       if (g && g.id !== activeGroupId) {
         suppressNextSnap.current = true;
-        setActiveGroupId(g.id);
-        setSetting(ACTIVE_GROUP_KEY, g.id);
+        selectActiveGroup(g.id);
       }
     },
-    [groups, width, activeGroupId]
+    [groups, width, activeGroupId, selectActiveGroup]
   );
 
   const handleGroupLongPress = useCallback(
@@ -246,8 +226,7 @@ export default function RoutinesTrackerScreen({
       }
       const g = await createGroup(trimmed, modal.color);
       closeModal();
-      await setSetting(ACTIVE_GROUP_KEY, g.id);
-      setActiveGroupId(g.id);
+      selectActiveGroup(g.id);
     } else if (modal.type === 'rename-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
@@ -265,7 +244,7 @@ export default function RoutinesTrackerScreen({
       await createRoutine({ groupId: activeGroupId, title: trimmed });
       closeModal();
     }
-  }, [modal, activeGroupId, closeModal]);
+  }, [modal, activeGroupId, closeModal, selectActiveGroup]);
 
   // FlatList ignores prop changes outside `data` unless `extraData` flips.
   // Adding a routine changes routinesByGroup but leaves `data` (groups)
