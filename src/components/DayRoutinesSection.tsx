@@ -13,19 +13,17 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
-  interpolateColor,
   runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
-  withSequence,
   withTiming,
-  type SharedValue,
 } from 'react-native-reanimated';
-import { useTheme } from '@/lib/themeContext';
-import { softColorBg } from '@/lib/colors';
-import type { FeatherName } from '@/lib/icons';
+import RoutineGroupChip from '@/components/RoutineGroupChip';
+import RoutineRow from '@/components/RoutineRow';
 import type { Routine, RoutineGroup } from '@/db/routines';
+import { softColorBg } from '@/lib/colors';
+import { useTheme } from '@/lib/themeContext';
 
 type Props = {
   groups: RoutineGroup[];
@@ -189,58 +187,10 @@ function DayRoutinesSectionImpl({
         tabBar: {
           flexDirection: 'row',
         },
-        chip: {
-          paddingHorizontal: theme.spacing.md,
-          paddingVertical: 6,
-          borderRadius: theme.radius.pill,
-          backgroundColor: theme.colors.surfaceAlt,
-          marginRight: theme.spacing.sm,
-        },
-        chipText: {
-          fontSize: theme.font.sm,
-          color: theme.colors.textMuted,
-          fontWeight: '600',
-        },
-        chipTextActive: {
-          color: theme.colors.textInverse,
-        },
         card: {
           marginTop: theme.spacing.sm,
           borderRadius: theme.radius.lg,
           paddingVertical: theme.spacing.xs,
-        },
-        row: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: theme.spacing.md,
-          paddingVertical: theme.spacing.sm,
-        },
-        check: {
-          width: 22,
-          height: 22,
-          borderRadius: 11,
-          borderWidth: 2,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: theme.spacing.sm,
-          backgroundColor: 'transparent',
-        },
-        iconBox: {
-          width: 24,
-          height: 24,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: theme.spacing.sm,
-        },
-        routineText: {
-          flex: 1,
-          fontSize: theme.font.md,
-          color: theme.colors.text,
-          fontWeight: '500',
-        },
-        routineTextDone: {
-          color: theme.colors.textMuted,
-          textDecorationLine: 'line-through',
         },
         empty: {
           paddingVertical: theme.spacing.md,
@@ -355,25 +305,15 @@ function DayRoutinesSectionImpl({
               </Text>
             </TouchableOpacity>
           ) : (
-            list.map((r) => {
-              const done = completedIds.has(r.id);
-              return (
-                <RoutineRow
-                  key={r.id}
-                  routine={r}
-                  done={done}
-                  accent={accent}
-                  onToggle={onToggle}
-                  rowStyle={styles.row}
-                  checkStyle={styles.check}
-                  textInverse={theme.colors.textInverse}
-                  routineTextStyle={[
-                    styles.routineText,
-                    done && styles.routineTextDone,
-                  ]}
-                />
-              );
-            })
+            list.map((r) => (
+              <RoutineRow
+                key={r.id}
+                routine={r}
+                done={completedIds.has(r.id)}
+                accent={accent}
+                onToggle={onToggle}
+              />
+            ))
           )}
         </View>
       </View>
@@ -417,21 +357,15 @@ function DayRoutinesSectionImpl({
               {groups.map((g, i) => {
                 const c = groupCounts[g.id] ?? { done: 0, total: 0 };
                 return (
-                  <GroupChip
+                  <RoutineGroupChip
                     key={g.id}
                     group={g}
                     index={i}
                     scrollX={scrollX}
                     pageWidth={pageWidth}
-                    fallbackColor={theme.colors.routine}
-                    inactiveBg={theme.colors.surfaceAlt}
-                    activeText={theme.colors.textInverse}
-                    inactiveText={theme.colors.textMuted}
-                    onPress={() => handleChipTap(i, g.id)}
-                    chipStyle={styles.chip}
-                    chipTextStyle={styles.chipText}
                     done={c.done}
                     total={c.total}
+                    onPress={() => handleChipTap(i, g.id)}
                   />
                 );
               })}
@@ -482,141 +416,7 @@ function DayRoutinesSectionImpl({
 
 // memo: DayRoutinesSection sits inside the day hub which re-renders
 // whenever DayContent re-renders. Without memo, every task tick / row
-// re-layout would re-instantiate all GroupChip animated styles below.
+// re-layout would re-instantiate all RoutineGroupChip animated styles
+// below.
 const DayRoutinesSection = memo(DayRoutinesSectionImpl);
 export default DayRoutinesSection;
-
-// Chip whose background/text interpolate as the inner pager scrolls,
-// so the active state changes in lockstep with the swipe instead of
-// snapping after onMomentumScrollEnd.
-const GroupChip = memo(function GroupChip({
-  group,
-  index,
-  scrollX,
-  pageWidth,
-  fallbackColor,
-  inactiveBg,
-  activeText,
-  inactiveText,
-  onPress,
-  chipStyle,
-  chipTextStyle,
-  done,
-  total,
-}: {
-  group: RoutineGroup;
-  index: number;
-  scrollX: SharedValue<number>;
-  pageWidth: number;
-  fallbackColor: string;
-  inactiveBg: string;
-  activeText: string;
-  inactiveText: string;
-  onPress: () => void;
-  chipStyle: object;
-  chipTextStyle: object;
-  done: number;
-  total: number;
-}) {
-  const chipColor = group.color ?? fallbackColor;
-
-  const bgStyle = useAnimatedStyle(() => {
-    const idx = scrollX.value / pageWidth;
-    const dist = Math.min(1, Math.abs(idx - index));
-    const t = 1 - dist;
-    return {
-      backgroundColor: interpolateColor(t, [0, 1], [inactiveBg, chipColor]),
-    };
-  });
-
-  const textStyle = useAnimatedStyle(() => {
-    const idx = scrollX.value / pageWidth;
-    const dist = Math.min(1, Math.abs(idx - index));
-    const t = 1 - dist;
-    return {
-      color: interpolateColor(t, [0, 1], [inactiveText, activeText]),
-    };
-  });
-
-  const allDone = total > 0 && done === total;
-  const countLabel = total > 0 ? `  ${done}/${total}${allDone ? ' ✓' : ''}` : '';
-
-  return (
-    <Animated.View style={[chipStyle, bgStyle]}>
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-        <Animated.Text style={[chipTextStyle, textStyle]}>
-          {group.name}
-          {countLabel ? (
-            <Animated.Text style={[chipTextStyle, textStyle, { opacity: 0.75 }]}>
-              {countLabel}
-            </Animated.Text>
-          ) : null}
-        </Animated.Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-});
-
-// POLISH:routine-burst — row with a check-icon scale pop when the row
-// transitions from undone → done. To remove the feature: collapse the
-// inner Animated.View back to a plain View and revert the call site to
-// render the row inline.
-const RoutineRow = memo(function RoutineRow({
-  routine,
-  done,
-  accent,
-  onToggle,
-  rowStyle,
-  checkStyle,
-  routineTextStyle,
-  textInverse,
-}: {
-  routine: Routine;
-  done: boolean;
-  accent: string;
-  onToggle: (id: string, nextDone: boolean) => void;
-  rowStyle: object;
-  checkStyle: object;
-  routineTextStyle: object;
-  textInverse: string;
-}) {
-  const iconName = (routine.icon as FeatherName | null) ?? null;
-  const burst = useSharedValue(1);
-  const wasDone = useRef(done);
-  useEffect(() => {
-    if (done && !wasDone.current) {
-      burst.value = withSequence(
-        withTiming(1.35, { duration: 110, easing: Easing.out(Easing.quad) }),
-        withTiming(1, { duration: 160, easing: Easing.inOut(Easing.quad) })
-      );
-    }
-    wasDone.current = done;
-  }, [done, burst]);
-  const burstStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: burst.value }],
-  }));
-  return (
-    <TouchableOpacity
-      onPress={() => onToggle(routine.id, !done)}
-      activeOpacity={0.7}
-      style={rowStyle}
-    >
-      <Animated.View
-        style={[
-          checkStyle,
-          { borderColor: accent },
-          done && { backgroundColor: accent },
-          burstStyle,
-        ]}
-      >
-        {done ? (
-          <Feather name="check" size={14} color={textInverse} />
-        ) : iconName ? (
-          <Feather name={iconName} size={12} color={accent} />
-        ) : null}
-      </Animated.View>
-      <Text style={routineTextStyle}>{routine.title}</Text>
-    </TouchableOpacity>
-  );
-});
-// /POLISH:routine-burst
