@@ -80,12 +80,16 @@ type Props = {
   // Hub mode: called after each structural mutation so the day view
   // (which keeps its own copy of groups/routines state) refetches.
   onRoutinesChanged?: () => void;
+  // Hub mode: bumped by the day screen every time a completion is
+  // toggled. We refetch so heatmaps/strips/stats stay in sync.
+  completionsVersion?: number;
 };
 
 export default function RoutinesTrackerScreen({
   hubMode,
   onSwipeUp,
   onRoutinesChanged,
+  completionsVersion,
 }: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -221,6 +225,19 @@ export default function RoutinesTrackerScreen({
       reload();
     }, [reload])
   );
+
+  // Hub mode: useFocusEffect never re-fires (this screen stays mounted),
+  // so when the user toggles a routine from the day view the heatmaps
+  // here would stay frozen. The hub bumps completionsVersion → refetch.
+  const firstCompletionsVersion = useRef(true);
+  useEffect(() => {
+    if (completionsVersion === undefined) return;
+    if (firstCompletionsVersion.current) {
+      firstCompletionsVersion.current = false;
+      return;
+    }
+    reload();
+  }, [completionsVersion, reload]);
 
   const handleSelectGroup = useCallback(
     (groupId: string) => {

@@ -126,6 +126,9 @@ type DayScreenProps = {
   // fire in hub mode (this screen never loses focus, just opacity), so
   // without this the routines section would stay stale.
   routinesVersion?: number;
+  // Hub mode reverse direction: called after each completion toggle so
+  // the routines screen (heatmaps/strips/stats) can refresh.
+  onRoutineToggled?: () => void;
 };
 
 export default function DayScreen({
@@ -136,6 +139,7 @@ export default function DayScreen({
   onOpenRoutines,
   onTasksChanged,
   routinesVersion,
+  onRoutineToggled,
 }: DayScreenProps = {}) {
   const { theme } = useTheme();
   const routeParams = useLocalSearchParams<{ date: string }>();
@@ -361,6 +365,7 @@ export default function DayScreen({
                 onChangeDate={onChangeDate}
                 onChangeDateAnimated={changeDateAnimated}
                 onTasksChanged={onTasksChanged}
+                onRoutineToggled={onRoutineToggled}
               />
             ) : null}
           </View>
@@ -449,6 +454,7 @@ type DayContentProps = {
   // like a swipe instead of an instant cut.
   onChangeDateAnimated?: (date: string) => void;
   onTasksChanged?: () => void;
+  onRoutineToggled?: () => void;
 };
 
 const DayContent = memo(function DayContent({
@@ -463,6 +469,7 @@ const DayContent = memo(function DayContent({
   onChangeDate,
   onChangeDateAnimated,
   onTasksChanged,
+  onRoutineToggled,
 }: DayContentProps) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -539,8 +546,9 @@ const DayContent = memo(function DayContent({
         return next;
       });
       await setCompletion(routineId, date, nextDone);
+      onRoutineToggled?.();
     },
-    [date]
+    [date, onRoutineToggled]
   );
 
   // A routine only appears on days at or after its creation day.

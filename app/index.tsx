@@ -53,6 +53,14 @@ export default function Hub() {
   const bumpRoutines = useCallback(() => {
     setRoutinesVersion((v) => v + 1);
   }, []);
+  // Same idea in the reverse direction: when the day view toggles a
+  // completion, the routines screen needs to refresh its heatmaps /
+  // strips / stats. Kept separate from routinesVersion so each side
+  // only refetches the data it actually consumes.
+  const [routineCompletionsVersion, setRoutineCompletionsVersion] = useState(0);
+  const bumpRoutineCompletions = useCallback(() => {
+    setRoutineCompletionsVersion((v) => v + 1);
+  }, []);
 
   const ensureMounted = useCallback((v: ActiveView) => {
     setMounted((prev) => {
@@ -147,6 +155,7 @@ export default function Hub() {
           onOpenRoutines={goToRoutines}
           onTasksChanged={markTasksDirty}
           routinesVersion={routinesVersion}
+          onRoutineToggled={bumpRoutineCompletions}
         />
       </Animated.View>
 
@@ -163,6 +172,7 @@ export default function Hub() {
             hubMode
             onSwipeUp={() => goToDay()}
             onRoutinesChanged={bumpRoutines}
+            completionsVersion={routineCompletionsVersion}
           />
         ) : null}
       </Animated.View>
