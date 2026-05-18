@@ -5,20 +5,21 @@ import {
   Alert,
   FlatList,
   Keyboard,
-  Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DragHandle from '@/components/DragHandle';
+import RoutinesModalSheet, {
+  type RoutinesModalState,
+} from '@/components/RoutinesModalSheet';
 import RoutineStatsCard from '@/components/RoutineStatsCard';
 import type { Routine, RoutineGroup } from '@/db/routines';
 import {
@@ -30,22 +31,10 @@ import {
 } from '@/data/mutations';
 import { EMPTY_STRUCTURE, routineStructureView } from '@/data/views';
 import { getSetting, setSetting } from '@/db/settings';
-import { TASK_COLORS } from '@/lib/colors';
 import { toDayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
 
 const ACTIVE_GROUP_KEY = 'routines_active_group';
-
-type ModalState =
-  | { type: 'create-group'; name: string; color: string | null }
-  | {
-      type: 'rename-group';
-      id: string;
-      name: string;
-      color: string | null;
-    }
-  | { type: 'create-routine'; name: string }
-  | null;
 
 function monthBounds(d: Date): { start: string; end: string } {
   const y = d.getFullYear();
@@ -99,7 +88,7 @@ export default function RoutinesTrackerScreen({
     setActiveGroupId(groups[0].id);
   }, [groups, activeGroupId]);
 
-  const [modal, setModal] = useState<ModalState>(null);
+  const [modal, setModal] = useState<RoutinesModalState>(null);
   const [kbHeight, setKbHeight] = useState(0);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
     new Set()
@@ -386,94 +375,9 @@ export default function RoutinesTrackerScreen({
           elevation: 8,
           zIndex: 10,
         },
-        modalBackdrop: {
-          flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.4)',
-          justifyContent: 'flex-end',
-        },
-        modalSheet: {
-          backgroundColor: theme.colors.surface,
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          padding: theme.spacing.lg,
-          paddingBottom: theme.spacing.xl,
-        },
-        modalTitle: {
-          fontSize: theme.font.lg,
-          fontWeight: '700',
-          color: theme.colors.text,
-          marginBottom: theme.spacing.md,
-        },
-        modalInput: {
-          fontSize: theme.font.lg,
-          color: theme.colors.text,
-          padding: theme.spacing.md,
-          backgroundColor: theme.colors.surfaceAlt,
-          borderRadius: theme.radius.md,
-          marginBottom: theme.spacing.lg,
-        },
-        modalColorLabel: {
-          fontSize: theme.font.xs,
-          fontWeight: '700',
-          color: theme.colors.textSubtle,
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-          marginBottom: theme.spacing.sm,
-        },
-        modalColorRow: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: theme.spacing.sm,
-          marginBottom: theme.spacing.lg,
-        },
-        modalColorChip: {
-          width: 32,
-          height: 32,
-          borderRadius: 16,
-          borderWidth: 2,
-          borderColor: 'transparent',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        modalColorChipSelected: {
-          borderColor: theme.colors.text,
-        },
-        modalColorChipEmpty: {
-          backgroundColor: theme.colors.surfaceAlt,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.border,
-        },
-        modalActions: {
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-          gap: theme.spacing.md,
-        },
-        modalBtn: {
-          paddingHorizontal: theme.spacing.lg,
-          paddingVertical: theme.spacing.sm,
-          borderRadius: theme.radius.md,
-        },
-        modalBtnPrimary: {
-          backgroundColor: theme.colors.routine,
-        },
-        modalBtnText: {
-          fontSize: theme.font.md,
-          fontWeight: '600',
-          color: theme.colors.textMuted,
-        },
-        modalBtnTextPrimary: {
-          color: theme.colors.textInverse,
-        },
       }),
     [theme]
   );
-
-  const modalTitle = useMemo(() => {
-    if (!modal) return '';
-    if (modal.type === 'create-group') return 'Nouveau groupe';
-    if (modal.type === 'rename-group') return 'Renommer le groupe';
-    return 'Nouvelle routine';
-  }, [modal]);
 
   return (
     <SafeAreaView
@@ -612,107 +516,13 @@ export default function RoutinesTrackerScreen({
         </TouchableOpacity>
       ) : null}
 
-      <Modal
-        visible={modal !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={closeModal}
-        statusBarTranslucent
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={closeModal}
-          style={styles.modalBackdrop}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => {}}
-            style={{ marginBottom: kbHeight }}
-          >
-            <View style={styles.modalSheet}>
-              <Text style={styles.modalTitle}>{modalTitle}</Text>
-              <TextInput
-                value={modal?.name ?? ''}
-                onChangeText={(v) =>
-                  setModal((m) => (m ? { ...m, name: v } : m))
-                }
-                placeholder={
-                  modal?.type === 'create-routine'
-                    ? 'Titre de la routine…'
-                    : 'Nom du groupe…'
-                }
-                placeholderTextColor={theme.colors.textSubtle}
-                style={styles.modalInput}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={submitModal}
-              />
-              {modal &&
-              (modal.type === 'create-group' ||
-                modal.type === 'rename-group') ? (
-                <>
-                  <Text style={styles.modalColorLabel}>Couleur</Text>
-                  <View style={styles.modalColorRow}>
-                    {TASK_COLORS.map((c) => {
-                      const selected = modal.color === c.value;
-                      return (
-                        <TouchableOpacity
-                          key={c.id}
-                          onPress={() =>
-                            setModal((m) =>
-                              m &&
-                              (m.type === 'create-group' ||
-                                m.type === 'rename-group')
-                                ? { ...m, color: c.value }
-                                : m
-                            )
-                          }
-                          style={[
-                            styles.modalColorChip,
-                            c.value
-                              ? { backgroundColor: c.value }
-                              : styles.modalColorChipEmpty,
-                            selected && styles.modalColorChipSelected,
-                          ]}
-                        >
-                          {!c.value && selected ? (
-                            <Feather
-                              name="check"
-                              size={14}
-                              color={theme.colors.text}
-                            />
-                          ) : null}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              ) : null}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  onPress={() => setModal(null)}
-                  style={styles.modalBtn}
-                >
-                  <Text style={styles.modalBtnText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={submitModal}
-                  style={[styles.modalBtn, styles.modalBtnPrimary]}
-                >
-                  <Text
-                    style={[
-                      styles.modalBtnText,
-                      styles.modalBtnTextPrimary,
-                    ]}
-                  >
-                    Valider
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <RoutinesModalSheet
+        modal={modal}
+        kbHeight={kbHeight}
+        onChange={setModal}
+        onClose={closeModal}
+        onSubmit={submitModal}
+      />
     </SafeAreaView>
   );
 }
