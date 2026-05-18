@@ -77,7 +77,6 @@ export default function RoutineWeekStrip({
           flex: 1,
           borderRadius: 6,
           borderWidth: 1,
-          borderColor: theme.colors.border,
           backgroundColor: 'transparent',
         },
         cellDone: {
@@ -106,11 +105,18 @@ export default function RoutineWeekStrip({
       <View style={styles.row}>
         {days.map((d) => {
           const done = completedDays.has(d.key);
+          // Same logic as the month heatmap: tint empty cells with the
+          // routine color at low alpha so they're visible.
+          const emptyBorder =
+            color.length === 7 && color.startsWith('#')
+              ? `${color}66`
+              : theme.colors.textSubtle;
           return (
             <View key={d.key} style={styles.cell}>
               <View
                 style={[
                   styles.cellInner,
+                  { borderColor: emptyBorder },
                   done && styles.cellDone,
                   done && { backgroundColor: color },
                   d.isToday && styles.cellToday,
