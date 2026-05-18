@@ -261,8 +261,9 @@ jarvis-app/
 │   │   │   ├── HorizonSummaryCard.tsx          ← Carte tappable read-only (overview) : counter + prochaine deadline + teaser
 │   │   │   ├── ObjectivesYearView.tsx          ← 12 mini-mois 3×4, today = point blanc, deadlines = cellules teintées
 │   │   │   ├── ObjectivesTimelineArrow.tsx     ← Flèche chronologique horizontale, ticks 5 ans, dots rouges (long uniquement)
-│   │   │   ├── ObjectivesYearPickerModal.tsx   ← Modal scrollable pour piocher n'importe quelle année (range ±50 ans)
-│   │   │   ├── ObjectiveCreateModal.tsx        ← Formulaire create — titre+description+deadline OBLIGATOIRES
+│   │   │   ├── ObjectivesYearBrowserModal.tsx  ← Modal full-screen 2 modes (detail < year > + picker scrollable). Tap timeline = open.
+│   │   │   ├── UpcomingDeadlinesList.tsx       ← Top N prochaines deadlines sortées (tous horizons confondus)
+│   │   │   ├── ObjectiveCreateModal.tsx        ← Formulaire create — titre+description+deadline OBLIGATOIRES, kb height tracking
 │   │   │   └── DeadlinePickerModal.tsx         ← Modal calendrier mensuel + nav < mois >, selection + clear
 │   │   ├── calendar/                           ← Vue calendrier
 │   │   │   ├── CalendarMonth.tsx               ← Grille 6×7

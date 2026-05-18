@@ -4,20 +4,22 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HorizonSummaryCard from '@/components/objectives/HorizonSummaryCard';
 import ObjectivesTimelineArrow from '@/components/objectives/ObjectivesTimelineArrow';
-import ObjectivesYearPickerModal from '@/components/objectives/ObjectivesYearPickerModal';
-import ObjectivesYearView from '@/components/objectives/ObjectivesYearView';
+import ObjectivesYearBrowserModal from '@/components/objectives/ObjectivesYearBrowserModal';
+import UpcomingDeadlinesList from '@/components/objectives/UpcomingDeadlinesList';
 import type { ObjectiveHorizon } from '@/db/objectives';
 import { EMPTY_OBJECTIVES, objectivesView } from '@/data/views';
 import { useTheme } from '@/lib/themeContext';
 
-// Overview screen: timeline arrow (long-term only) + 3 tappable
-// horizon summary cards. Tap the timeline → opens a year picker.
-// Pick a year → year detail view appears (all horizons, not just
-// long).
+// Overview screen. Read-only — every mutation lives behind the per-
+// horizon sub-pages or the per-objective edit screen.
 //
-// Read-only. Every mutation (add / edit / check / delete) lives
-// behind the per-horizon sub-pages (/objectives/long, /medium,
-// /short) or the per-objective edit screen (/objectives/[id]).
+// Layout, top to bottom:
+//   1. Upcoming deadlines (next 5 across all horizons, sorted by date)
+//   2. Long-term timeline (vision 30 years, red dots only)
+//   3. Three horizon summary cards (tappable → drill-in)
+//
+// Tap timeline → opens a full-screen year browser modal. Closing the
+// modal drops the year detail completely (no lingering inline view).
 const HORIZON_PRIORITY: Record<ObjectiveHorizon, number> = {
   long: 0,
   medium: 1,
@@ -28,10 +30,16 @@ export default function ObjectivesScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const objectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  // Year to land on when the browser opens. Drives initialYear of the
+  // modal; the modal copies it into local state and lets the user nav
+  // from there.
+  const [browserYear, setBrowserYear] = useState<number>(() =>
+    new Date().getFullYear()
+  );
 
-  // Map from dayKey → most-urgent horizon, fed to the year view.
+  // Map dayKey → most-urgent horizon, fed to the year view inside
+  // the browser.
   const deadlinesByDay = useMemo(() => {
     const out = new Map<string, ObjectiveHorizon>();
     const consider = (list: typeof objectives.long) => {
@@ -52,9 +60,7 @@ export default function ObjectivesScreen() {
     return out;
   }, [objectives]);
 
-  // Years with at least one long-term deadline (timeline shows only
-  // long terme — the user's mental model: the arrow is the strategic
-  // horizon, the year view is where the tactical layers surface).
+  // Years with at least one *long-term* deadline (timeline scope).
   const longDeadlineYears = useMemo(() => {
     const out = new Set<number>();
     for (const o of objectives.long) {
@@ -64,7 +70,7 @@ export default function ObjectivesScreen() {
     return out;
   }, [objectives.long]);
 
-  // Per-year deadline counts (all horizons) for the picker meta.
+  // Per-year deadline count (all horizons) for the picker meta.
   const deadlineCountByYear = useMemo(() => {
     const out = new Map<number, number>();
     for (const [dayKey] of deadlinesByDay) {
@@ -74,8 +80,14 @@ export default function ObjectivesScreen() {
     return out;
   }, [deadlinesByDay]);
 
-  // Tap a deadline cell in the year view → open the (first) objective
-  // that has that deadline. Long → medium → short priority.
+  // Flat list of every non-done objective, fed to the upcoming list.
+  const allObjectives = useMemo(
+    () => [...objectives.long, ...objectives.medium, ...objectives.short],
+    [objectives]
+  );
+
+  // Tap a deadline cell inside the year view → open the (first)
+  // matching objective. Closes the browser as a side effect.
   const handleSelectDay = useCallback(
     (dayKey: string) => {
       for (const h of ['long', 'medium', 'short'] as ObjectiveHorizon[]) {
@@ -90,6 +102,20 @@ export default function ObjectivesScreen() {
     },
     [objectives, router]
   );
+
+  const handleOpenObjective = useCallback(
+    (id: string) => {
+      router.push(`/objectives/${id}`);
+    },
+    [router]
+  );
+
+  const openBrowser = useCallback(() => {
+    // Land on the current year by default — the user can navigate
+    // from there.
+    setBrowserYear(new Date().getFullYear());
+    setBrowserOpen(true);
+  }, []);
 
   const styles = useMemo(
     () =>
@@ -123,20 +149,16 @@ export default function ObjectivesScreen() {
       />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
-          Aperçu de tes objectifs. Appuie sur une carte d&apos;horizon pour
-          gérer, ou sur la frise pour zoomer sur une année.
+          Aperçu de tes objectifs. Appuie sur une carte pour gérer.
         </Text>
+        <UpcomingDeadlinesList
+          objectives={allObjectives}
+          onOpenObjective={handleOpenObjective}
+        />
         <ObjectivesTimelineArrow
           longDeadlineYears={longDeadlineYears}
-          onTap={() => setPickerOpen(true)}
+          onTap={openBrowser}
         />
-        {selectedYear !== null ? (
-          <ObjectivesYearView
-            year={selectedYear}
-            deadlinesByDay={deadlinesByDay}
-            onSelectDay={handleSelectDay}
-          />
-        ) : null}
         <HorizonSummaryCard
           title="Long terme"
           accent={theme.colors.objectiveLong}
@@ -156,15 +178,13 @@ export default function ObjectivesScreen() {
           onPress={() => router.push('/objectives/short')}
         />
       </ScrollView>
-      <ObjectivesYearPickerModal
-        visible={pickerOpen}
-        selectedYear={selectedYear}
+      <ObjectivesYearBrowserModal
+        visible={browserOpen}
+        initialYear={browserYear}
+        deadlinesByDay={deadlinesByDay}
         deadlineCountByYear={deadlineCountByYear}
-        onClose={() => setPickerOpen(false)}
-        onPick={(y) => {
-          setSelectedYear(y);
-          setPickerOpen(false);
-        }}
+        onClose={() => setBrowserOpen(false)}
+        onSelectDay={handleSelectDay}
       />
     </SafeAreaView>
   );

@@ -3,7 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   StyleSheet,
@@ -52,6 +52,12 @@ export default function ObjectiveCreateModal({
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Track keyboard height ourselves — Android Modal lives in its own
+  // window where windowSoftInputMode doesn't lift the content, and
+  // KeyboardAvoidingView behaves inconsistently inside Modal. We
+  // apply the height as marginBottom on the sheet for reliable
+  // lift on both platforms. Same pattern as RoutinesModalSheet.
+  const [kbHeight, setKbHeight] = useState(0);
 
   // Reset every time the modal re-opens so a previous draft doesn't
   // leak into the next create.
@@ -63,6 +69,19 @@ export default function ObjectiveCreateModal({
       setPickerOpen(false);
     }
   }, [visible]);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvt, (e) =>
+      setKbHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(hideEvt, () => setKbHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const canSubmit =
     title.trim().length > 0 &&
@@ -196,18 +215,18 @@ export default function ObjectiveCreateModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={onClose}
+        style={styles.backdrop}
       >
         <TouchableOpacity
           activeOpacity={1}
-          onPress={onClose}
-          style={styles.backdrop}
+          onPress={() => {}}
+          style={{ marginBottom: kbHeight }}
         >
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={styles.sheet}>
-              <Text style={styles.title}>Nouvel objectif {HORIZON_LABELS[horizon]}</Text>
+          <View style={styles.sheet}>
+            <Text style={styles.title}>Nouvel objectif {HORIZON_LABELS[horizon]}</Text>
 
               <Text style={styles.label}>
                 Titre <Text style={styles.labelRequired}>*</Text>
@@ -280,10 +299,9 @@ export default function ObjectiveCreateModal({
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
-      </KeyboardAvoidingView>
+      </TouchableOpacity>
       {pickerOpen ? (
         <DeadlinePickerModal
           visible={pickerOpen}
