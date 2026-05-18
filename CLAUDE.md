@@ -20,6 +20,31 @@ Si Thomas confirme avoir déjà fait le release build → ne pas insister, retir
 
 ---
 
+## 🎯 OBJECTIFS LONG TERME — NE JAMAIS PERDRE DE VUE
+
+**Vision :** Jarvis = agent personnel quotidien, pas un todo de plus. Cap à terme : un assistant qui voit l'agenda de Thomas, comprend ses objectifs, et le pousse à les tenir.
+
+**Phases (détail en §3) :**
+- **Phase 1** — MVP local complet, mode avion fonctionnel, zéro réseau. ✅ Done + extensions UX.
+- **Phase 2** — Sync local-first via PowerSync + Supabase, auth magic link. Pas commencé.
+- **Phase 3** — Agent IA : Claude API + Vercel AI SDK + MCP Google Calendar. Pas avant phase 2 stable.
+
+**Invariants — ne JAMAIS transiger :**
+
+1. **Local-first toujours.** Phase 2 ajoute la sync, elle ne supprime pas le mode hors-ligne. L'app doit marcher en mode avion à toutes les phases.
+2. **YAGNI strict par phase.** Pas de code qui ne sert qu'à la phase suivante. Pas d'abstraction « pour plus tard ». Trois lignes répétées valent mieux qu'une abstraction prématurée.
+3. **Architecture clean (cf. §11) — verrou dur.** Le data layer `src/data/` est l'unique seam pour le cache + l'invalidation. **JAMAIS** :
+   - Réintroduire un cache `let cachedX = …` au niveau module dans un screen.
+   - Lire `src/db/*` directement depuis un screen pour des données dérivées (utiliser `view.useView()`).
+   - Écrire dans la DB sans passer par `src/data/mutations.ts`.
+   - Ajouter des callbacks `onXChanged` entre screens (l'invalidation est globale via `data/`).
+   - Laisser un fichier dépasser ~700 lignes sans réfléchir au split.
+   - Mêler dans un fichier le pager + la list + les modals + les animations. Un fichier = une responsabilité.
+4. **`src/data/` est le point d'attache pour la sync (phase 2).** Toute logique de cache qui contourne ce seam casse cette propriété et fera mal à brancher PowerSync plus tard.
+5. **Si un changement structurel est tentant** (« je vais juste ajouter un useState pour cacher ça vite fait »), s'arrêter : c'est exactement ce qu'on a passé une session à démanteler. Ouvrir `src/data/views.ts` à la place.
+
+---
+
 ## 1. Projet
 
 **Nom technique :** `jarvis-app` (slug EAS : `@throbert/jarvis-app`)
