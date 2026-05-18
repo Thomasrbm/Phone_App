@@ -119,7 +119,7 @@ export default function RoutineWeekStrip({
                   { borderColor: emptyBorder },
                   done && styles.cellDone,
                   done && { backgroundColor: color },
-                  d.isToday && styles.cellToday,
+                  !done && d.isToday && styles.cellToday,
                   d.isFuture && styles.cellFuture,
                 ]}
               />

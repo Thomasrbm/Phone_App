@@ -124,7 +124,11 @@ export default function RoutineMonthHeatmap({
                   { borderColor: emptyBorder },
                   done && styles.cellDone,
                   done && { backgroundColor: color },
-                  isToday && styles.cellToday,
+                  // Today ring only shown on uncompleted days — once
+                  // the routine is done the color fill already stands
+                  // out, and the orange ring on top of (e.g.) a green
+                  // fill is visually noisy.
+                  !done && isToday && styles.cellToday,
                 ]}
               />
             </View>
