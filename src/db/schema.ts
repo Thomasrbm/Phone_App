@@ -92,3 +92,5 @@ CREATE TABLE IF NOT EXISTS objectives (
 export const CREATE_OBJECTIVES_HORIZON_INDEX = `
 CREATE INDEX IF NOT EXISTS idx_objectives_horizon ON objectives(horizon);
 `;
+
+export const ADD_OBJECTIVES_DEADLINE = `ALTER TABLE objectives ADD COLUMN deadline TEXT;`;

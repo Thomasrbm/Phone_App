@@ -14,6 +14,9 @@ export type Objective = {
   done: boolean;
   doneAt: string | null;
   deletedAt: string | null;
+  // Optional target date for the objective, format 'YYYY-MM-DD' in
+  // local TZ — same convention as task `day` keys.
+  deadline: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -27,6 +30,7 @@ type ObjectiveRow = {
   done: number;
   done_at: string | null;
   deleted_at: string | null;
+  deadline: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -41,6 +45,7 @@ function rowToObjective(row: ObjectiveRow): Objective {
     done: row.done === 1,
     doneAt: row.done_at,
     deletedAt: row.deleted_at,
+    deadline: row.deadline,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -76,23 +81,26 @@ export async function createObjective(params: {
   title: string;
   horizon: ObjectiveHorizon;
   description?: string | null;
+  deadline?: string | null;
 }): Promise<Objective> {
   const db = await getDatabase();
   const id = uuidv4();
   const now = new Date().toISOString();
   const description = params.description ?? null;
+  const deadline = params.deadline ?? null;
   const max = await db.getFirstAsync<{ p: number | null }>(
     'SELECT MAX(position) AS p FROM objectives WHERE horizon = ? AND deleted_at IS NULL',
     params.horizon
   );
   const position = (max?.p ?? -1) + 1;
   await db.runAsync(
-    'INSERT INTO objectives (id, title, description, horizon, position, done, done_at, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?)',
+    'INSERT INTO objectives (id, title, description, horizon, position, done, done_at, deleted_at, deadline, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, ?, ?, ?)',
     id,
     params.title,
     description,
     params.horizon,
     position,
+    deadline,
     now,
     now
   );
@@ -105,6 +113,7 @@ export async function createObjective(params: {
     done: false,
     doneAt: null,
     deletedAt: null,
+    deadline,
     createdAt: now,
     updatedAt: now,
   };
@@ -116,6 +125,7 @@ export async function updateObjective(
     title?: string;
     description?: string | null;
     horizon?: ObjectiveHorizon;
+    deadline?: string | null;
   }
 ): Promise<void> {
   const sets: string[] = [];
@@ -131,6 +141,10 @@ export async function updateObjective(
   if (fields.horizon !== undefined) {
     sets.push('horizon = ?');
     vals.push(fields.horizon);
+  }
+  if (fields.deadline !== undefined) {
+    sets.push('deadline = ?');
+    vals.push(fields.deadline);
   }
   if (sets.length === 0) return;
   const db = await getDatabase();

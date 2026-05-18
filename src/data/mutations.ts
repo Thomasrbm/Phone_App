@@ -197,6 +197,7 @@ export async function createObjective(params: {
   title: string;
   horizon: ObjectiveHorizon;
   description?: string | null;
+  deadline?: string | null;
 }): Promise<Objective> {
   const obj = await dbCreateObjective(params);
   invalidateObjectives();
@@ -235,6 +236,7 @@ export async function updateObjective(
     title?: string;
     description?: string | null;
     horizon?: ObjectiveHorizon;
+    deadline?: string | null;
   }
 ): Promise<void> {
   await dbUpdateObjective(id, fields);

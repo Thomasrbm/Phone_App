@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import {
+  ADD_OBJECTIVES_DEADLINE,
   ADD_ROUTINES_ICON,
   ADD_ROUTINE_GROUPS_COLOR,
   ADD_TASKS_COLOR,
@@ -83,6 +84,11 @@ const migrations: Migration[] = [
   async (db) => {
     await db.execAsync(CREATE_OBJECTIVES_TABLE);
     await db.execAsync(CREATE_OBJECTIVES_HORIZON_INDEX);
+  },
+  async (db) => {
+    if (!(await hasColumn(db, 'objectives', 'deadline'))) {
+      await db.execAsync(ADD_OBJECTIVES_DEADLINE);
+    }
   },
 ];
 

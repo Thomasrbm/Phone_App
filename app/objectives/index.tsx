@@ -1,37 +1,69 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ObjectiveHorizonSection from '@/components/objectives/ObjectiveHorizonSection';
+import HorizonSummaryCard from '@/components/objectives/HorizonSummaryCard';
+import ObjectivesYearView from '@/components/objectives/ObjectivesYearView';
 import type { ObjectiveHorizon } from '@/db/objectives';
-import { createObjective, toggleObjectiveDone } from '@/data/mutations';
 import { EMPTY_OBJECTIVES, objectivesView } from '@/data/views';
 import { useTheme } from '@/lib/themeContext';
 
-// Single-screen view of every objective, grouped by horizon. Order is
-// long → medium → short on purpose: long terme is the most important
-// framing ("où est-ce que je vais") and sits at the top.
+// Overview screen: read-only summary + year-view. Every interaction
+// (add / edit / check / delete) lives behind the per-horizon sub-pages
+// (/objectives/long, /medium, /short) or the per-objective edit screen
+// (/objectives/[id]). This page never mutates.
+//
+// Long takes precedence in the year view (visually loudest) when
+// multiple horizons share a deadline day.
+const HORIZON_PRIORITY: Record<ObjectiveHorizon, number> = {
+  long: 0,
+  medium: 1,
+  short: 2,
+};
+
 export default function ObjectivesScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const objectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
 
-  const handleToggle = useCallback((id: string, nextDone: boolean) => {
-    toggleObjectiveDone(id, nextDone);
-  }, []);
+  // Build a map from dayKey to the most-urgent horizon with a deadline
+  // there. Skips done objectives (no point flagging completed work
+  // visually).
+  const deadlinesByDay = useMemo(() => {
+    const out = new Map<string, ObjectiveHorizon>();
+    const consider = (list: typeof objectives.long) => {
+      for (const o of list) {
+        if (o.done || !o.deadline) continue;
+        const existing = out.get(o.deadline);
+        if (
+          !existing ||
+          HORIZON_PRIORITY[o.horizon] < HORIZON_PRIORITY[existing]
+        ) {
+          out.set(o.deadline, o.horizon);
+        }
+      }
+    };
+    consider(objectives.long);
+    consider(objectives.medium);
+    consider(objectives.short);
+    return out;
+  }, [objectives]);
 
-  const handleOpen = useCallback(
-    (id: string) => {
-      router.push(`/objectives/${id}`);
+  // Tap a deadline cell → open the (first) objective that has that
+  // deadline. Priority again: long → medium → short.
+  const handleSelectDay = useCallback(
+    (dayKey: string) => {
+      for (const h of ['long', 'medium', 'short'] as ObjectiveHorizon[]) {
+        const match = objectives[h].find(
+          (o) => !o.done && o.deadline === dayKey
+        );
+        if (match) {
+          router.push(`/objectives/${match.id}`);
+          return;
+        }
+      }
     },
-    [router]
-  );
-
-  const makeHandleAdd = useCallback(
-    (horizon: ObjectiveHorizon) => (title: string) => {
-      createObjective({ title, horizon });
-    },
-    []
+    [objectives, router]
   );
 
   const styles = useMemo(
@@ -66,36 +98,31 @@ export default function ObjectivesScreen() {
       />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
-          Tes objectifs personnels, classés par horizon. Indépendants du jour.
+          Aperçu de tes objectifs. Appuie sur une carte pour ouvrir, éditer ou
+          ajouter.
         </Text>
-        <ObjectiveHorizonSection
-          horizon="long"
+        <ObjectivesYearView
+          deadlinesByDay={deadlinesByDay}
+          onSelectDay={handleSelectDay}
+        />
+        <HorizonSummaryCard
           title="Long terme"
           accent={theme.colors.objectiveLong}
           objectives={objectives.long}
-          onToggle={handleToggle}
-          onOpen={handleOpen}
-          onAdd={makeHandleAdd('long')}
+          onPress={() => router.push('/objectives/long')}
         />
-        <ObjectiveHorizonSection
-          horizon="medium"
+        <HorizonSummaryCard
           title="Moyen terme"
           accent={theme.colors.objectiveMedium}
           objectives={objectives.medium}
-          onToggle={handleToggle}
-          onOpen={handleOpen}
-          onAdd={makeHandleAdd('medium')}
+          onPress={() => router.push('/objectives/medium')}
         />
-        <ObjectiveHorizonSection
-          horizon="short"
+        <HorizonSummaryCard
           title="Court terme"
           accent={theme.colors.objectiveShort}
           objectives={objectives.short}
-          onToggle={handleToggle}
-          onOpen={handleOpen}
-          onAdd={makeHandleAdd('short')}
+          onPress={() => router.push('/objectives/short')}
         />
-        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );

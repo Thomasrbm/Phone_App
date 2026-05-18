@@ -1,4 +1,6 @@
 import { Feather } from '@expo/vector-icons';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -12,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DeadlinePickerModal from '@/components/objectives/DeadlinePickerModal';
 import {
   getObjectiveById,
   type Objective,
@@ -41,6 +44,8 @@ export default function ObjectiveEditScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [horizon, setHorizon] = useState<ObjectiveHorizon>('long');
+  const [deadline, setDeadline] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,6 +56,7 @@ export default function ObjectiveEditScreen() {
         setTitle(o.title);
         setDescription(o.description ?? '');
         setHorizon(o.horizon);
+        setDeadline(o.deadline);
       });
       return () => {
         cancelled = true;
@@ -65,6 +71,14 @@ export default function ObjectiveEditScreen() {
     if (horizon === objective.horizon) return;
     updateObjective(id, { horizon });
   }, [horizon, objective, id]);
+
+  // Deadline: same auto-save pattern. null != null is a no-op since the
+  // strict equality holds. Picker emits 'YYYY-MM-DD' or null.
+  useEffect(() => {
+    if (!objective) return;
+    if (deadline === objective.deadline) return;
+    updateObjective(id, { deadline });
+  }, [deadline, objective, id]);
 
   const saveTitle = () => {
     if (!objective) return;
@@ -167,9 +181,37 @@ export default function ObjectiveEditScreen() {
         headerCloseBtn: {
           paddingHorizontal: theme.spacing.md,
         },
+        deadlineBtn: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: theme.spacing.sm,
+          paddingVertical: theme.spacing.sm,
+          paddingHorizontal: theme.spacing.md,
+          borderRadius: theme.radius.md,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.border,
+          alignSelf: 'flex-start',
+        },
+        deadlineBtnText: {
+          fontSize: theme.font.md,
+          color: theme.colors.text,
+          fontWeight: '500',
+        },
+        deadlineBtnEmpty: {
+          color: theme.colors.textMuted,
+        },
       }),
     [theme]
   );
+
+  const deadlineLabel = useMemo(() => {
+    if (!deadline) return null;
+    const d = parseISO(deadline);
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    const fmt = sameYear ? 'EEEE d MMMM' : 'EEEE d MMMM yyyy';
+    const t = format(d, fmt, { locale: fr });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }, [deadline]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -245,6 +287,29 @@ export default function ObjectiveEditScreen() {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.label}>Deadline</Text>
+            <TouchableOpacity
+              onPress={() => setPickerOpen(true)}
+              style={styles.deadlineBtn}
+              activeOpacity={0.7}
+            >
+              <Feather
+                name="calendar"
+                size={16}
+                color={deadline ? accent : theme.colors.textMuted}
+              />
+              <Text
+                style={[
+                  styles.deadlineBtnText,
+                  !deadline && styles.deadlineBtnEmpty,
+                ]}
+              >
+                {deadlineLabel ?? 'Aucune deadline'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.label}>Description</Text>
             <TextInput
               value={description}
@@ -264,6 +329,18 @@ export default function ObjectiveEditScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      {pickerOpen ? (
+        <DeadlinePickerModal
+          visible={pickerOpen}
+          initialDeadline={deadline}
+          accent={accent}
+          onClose={() => setPickerOpen(false)}
+          onConfirm={(d) => {
+            setDeadline(d);
+            setPickerOpen(false);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

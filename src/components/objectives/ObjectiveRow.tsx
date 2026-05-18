@@ -1,4 +1,6 @@
 import { Feather } from '@expo/vector-icons';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
@@ -9,7 +11,31 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import type { Objective } from '@/db/objectives';
+import { todayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
+
+// Smart deadline label: "Aujourd'hui" / "Demain" / "Dans X j." /
+// "En retard de X j." / "12 mars" / "12 mars 2028". Tuned so the user
+// scans urgency without parsing dates.
+function formatDeadline(deadline: string): { label: string; overdue: boolean } {
+  const today = todayKey();
+  if (deadline === today) return { label: "Aujourd'hui", overdue: false };
+  const d = parseISO(deadline);
+  const t = parseISO(today);
+  const diffMs = d.getTime() - t.getTime();
+  const diffDays = Math.round(diffMs / 86400000);
+  if (diffDays < 0) {
+    return {
+      label: `En retard de ${Math.abs(diffDays)} j.`,
+      overdue: true,
+    };
+  }
+  if (diffDays === 1) return { label: 'Demain', overdue: false };
+  if (diffDays <= 7) return { label: `Dans ${diffDays} j.`, overdue: false };
+  const sameYear = d.getFullYear() === t.getFullYear();
+  const fmt = sameYear ? 'd MMM' : 'd MMM yyyy';
+  return { label: format(d, fmt, { locale: fr }), overdue: false };
+}
 
 type Props = {
   objective: Objective;
@@ -84,9 +110,27 @@ const ObjectiveRow = memo(function ObjectiveRow({
           color: theme.colors.textSubtle,
           marginTop: 2,
         },
+        deadlineRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          marginTop: 4,
+        },
+        deadlineText: {
+          fontSize: theme.font.xs,
+          color: theme.colors.textMuted,
+          fontWeight: '600',
+        },
+        deadlineOverdue: {
+          color: theme.colors.objectiveLong,
+        },
       }),
     [theme]
   );
+
+  const deadlineInfo = objective.deadline
+    ? formatDeadline(objective.deadline)
+    : null;
 
   return (
     <TouchableOpacity
@@ -122,6 +166,27 @@ const ObjectiveRow = memo(function ObjectiveRow({
           <Text style={styles.description} numberOfLines={1}>
             {objective.description}
           </Text>
+        ) : null}
+        {deadlineInfo && !objective.done ? (
+          <View style={styles.deadlineRow}>
+            <Feather
+              name="calendar"
+              size={11}
+              color={
+                deadlineInfo.overdue
+                  ? theme.colors.objectiveLong
+                  : theme.colors.textMuted
+              }
+            />
+            <Text
+              style={[
+                styles.deadlineText,
+                deadlineInfo.overdue && styles.deadlineOverdue,
+              ]}
+            >
+              {deadlineInfo.label}
+            </Text>
+          </View>
         ) : null}
       </View>
     </TouchableOpacity>

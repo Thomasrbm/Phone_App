@@ -212,8 +212,9 @@ jarvis-app/
 │   │   ├── index.tsx                           ← RoutinesScreen : pager horizontal de groupes, stats par routine
 │   │   └── [id].tsx                            ← RoutineEditScreen : titre, icône, groupe, archive
 │   ├── objectives/
-│   │   ├── index.tsx                           ← ObjectivesScreen : 3 sections horizon (long/med/short), add inline
-│   │   └── [id].tsx                            ← ObjectiveEditScreen : titre, description, switch horizon, delete
+│   │   ├── index.tsx                           ← ObjectivesScreen : overview READ-ONLY (year view + 3 summary cards tappables)
+│   │   ├── long.tsx / medium.tsx / short.tsx   ← Routes statiques per-horizon (wrappers <HorizonScreen />)
+│   │   └── [id].tsx                            ← ObjectiveEditScreen : titre, horizon, deadline picker, description, delete
 │   ├── task/
 │   │   └── [id].tsx                            ← TaskEditScreen : title, couleur, icône, description, 4-way swipe back
 │   ├── trash/
@@ -253,8 +254,12 @@ jarvis-app/
 │   │   │   ├── RoutineMonthHeatmap.tsx         ← Grille mensuelle 7×N
 │   │   │   └── RoutineWeekStrip.tsx            ← Bande Mon→Sun
 │   │   ├── objectives/                         ← Écran objectifs
-│   │   │   ├── ObjectiveRow.tsx                ← Row tickable avec burst-on-done (sans swipe-delete)
-│   │   │   └── ObjectiveHorizonSection.tsx     ← Section colorée (long/med/short) + add inline
+│   │   │   ├── ObjectiveRow.tsx                ← Row tickable + deadline smart label (overdue rouge)
+│   │   │   ├── ObjectiveHorizonSection.tsx     ← Section colorée + add inline (utilisée dans HorizonScreen)
+│   │   │   ├── HorizonScreen.tsx               ← Écran shared per-horizon (full CRUD), monté par long/medium/short.tsx
+│   │   │   ├── HorizonSummaryCard.tsx          ← Carte tappable read-only (overview) : counter + prochaine deadline + teaser
+│   │   │   ├── ObjectivesYearView.tsx          ← 12 mini-mois 4×3 navigables par année, deadlines = cellules teintées
+│   │   │   └── DeadlinePickerModal.tsx         ← Modal calendrier mensuel + nav < mois >, selection + clear
 │   │   ├── calendar/                           ← Vue calendrier
 │   │   │   ├── CalendarMonth.tsx               ← Grille 6×7
 │   │   │   ├── CalendarWeek.tsx                ← Liste verticale 7 jours
