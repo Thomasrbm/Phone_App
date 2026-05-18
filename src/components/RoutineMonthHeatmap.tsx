@@ -80,7 +80,6 @@ export default function RoutineMonthHeatmap({
           flex: 1,
           borderRadius: 4,
           borderWidth: 1,
-          borderColor: theme.colors.border,
           backgroundColor: 'transparent',
         },
         cellDone: {
@@ -110,11 +109,19 @@ export default function RoutineMonthHeatmap({
           }
           const done = completedDays.has(c.key);
           const isToday = c.key === todayKey;
+          // Empty cells tint their border with the routine color at low
+          // alpha so they read as "spots reserved for this routine"
+          // instead of disappearing into the background.
+          const emptyBorder =
+            color.length === 7 && color.startsWith('#')
+              ? `${color}66`
+              : theme.colors.textSubtle;
           return (
             <View key={i} style={styles.cell}>
               <View
                 style={[
                   styles.cellInner,
+                  { borderColor: emptyBorder },
                   done && styles.cellDone,
                   done && { backgroundColor: color },
                   isToday && styles.cellToday,
