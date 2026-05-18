@@ -69,3 +69,26 @@ CREATE INDEX IF NOT EXISTS idx_completions_day ON routine_completions(day);
 export const ADD_ROUTINE_GROUPS_COLOR = `ALTER TABLE routine_groups ADD COLUMN color TEXT;`;
 export const ADD_TASKS_ICON = `ALTER TABLE tasks ADD COLUMN icon TEXT;`;
 export const ADD_ROUTINES_ICON = `ALTER TABLE routines ADD COLUMN icon TEXT;`;
+
+// Objectives = global personal goals, NOT day-scoped. Categorised by
+// horizon (short / medium / long). Same soft-delete + done pattern as
+// tasks. Position lets the user reorder within a horizon if/when we
+// add drag-to-reorder later.
+export const CREATE_OBJECTIVES_TABLE = `
+CREATE TABLE IF NOT EXISTS objectives (
+  id           TEXT PRIMARY KEY,
+  title        TEXT NOT NULL,
+  description  TEXT,
+  horizon      TEXT NOT NULL CHECK(horizon IN ('short','medium','long')),
+  position     INTEGER NOT NULL DEFAULT 0,
+  done         INTEGER NOT NULL DEFAULT 0,
+  done_at      TEXT,
+  deleted_at   TEXT,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+`;
+
+export const CREATE_OBJECTIVES_HORIZON_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_objectives_horizon ON objectives(horizon);
+`;

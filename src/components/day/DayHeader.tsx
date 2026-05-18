@@ -16,14 +16,15 @@ type Props = {
   deletedCount: number;
   onCancelSelect: () => void;
   onToggleSearch: () => void;
+  onOpenObjectives: () => void;
   onOpenTrash: () => void;
   onOpenSettings: () => void;
 };
 
 // Top of the day screen: either the standard action row (search /
-// trash / settings + date title), or the multi-select header (cancel +
-// selection count). Pure presentational — DayContent owns the state
-// and toggle handlers.
+// objectives / trash / settings + date title), or the multi-select
+// header (cancel + selection count). Pure presentational — DayContent
+// owns the state and toggle handlers.
 export default function DayHeader({
   date,
   selectMode,
@@ -32,6 +33,7 @@ export default function DayHeader({
   deletedCount,
   onCancelSelect,
   onToggleSearch,
+  onOpenObjectives,
   onOpenTrash,
   onOpenSettings,
 }: Props) {
@@ -153,6 +155,21 @@ export default function DayHeader({
               name="search"
               size={22}
               color={searchOpen ? theme.colors.accent : theme.colors.text}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onOpenObjectives}
+            style={styles.iconBtn}
+            hitSlop={8}
+          >
+            {/* `target` = arrow-in-target picto; red accent = horizon
+                "long terme" couleur. Toujours rouge même si dark mode
+                car c'est le signal visuel principal de l'entrée
+                Objectifs. */}
+            <Feather
+              name="target"
+              size={22}
+              color={theme.colors.objectiveLong}
             />
           </TouchableOpacity>
         </View>

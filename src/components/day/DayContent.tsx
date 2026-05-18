@@ -516,6 +516,7 @@ const DayContent = memo(function DayContent({
             deletedCount={deletedCount}
             onCancelSelect={exitSelectMode}
             onToggleSearch={() => setSearchOpen((s) => !s)}
+            onOpenObjectives={() => router.push('/objectives')}
             onOpenTrash={() => router.push(`/trash/${date}`)}
             onOpenSettings={() => router.push('/settings')}
           />

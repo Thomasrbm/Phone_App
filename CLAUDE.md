@@ -211,6 +211,9 @@ jarvis-app/
 │   ├── routines/
 │   │   ├── index.tsx                           ← RoutinesScreen : pager horizontal de groupes, stats par routine
 │   │   └── [id].tsx                            ← RoutineEditScreen : titre, icône, groupe, archive
+│   ├── objectives/
+│   │   ├── index.tsx                           ← ObjectivesScreen : 3 sections horizon (long/med/short), add inline
+│   │   └── [id].tsx                            ← ObjectiveEditScreen : titre, description, switch horizon, delete
 │   ├── task/
 │   │   └── [id].tsx                            ← TaskEditScreen : title, couleur, icône, description, 4-way swipe back
 │   ├── trash/
@@ -231,6 +234,7 @@ jarvis-app/
 │   │   ├── migrations.ts                       ← Array versionnée + idempotente (PRAGMA check)
 │   │   ├── tasks.ts                            ← CRUD tasks + searchTasks + getTaskCountsInRange + soft delete
 │   │   ├── routines.ts                         ← CRUD groups/routines/completions + stats + counts in range
+│   │   ├── objectives.ts                       ← CRUD objectifs (long/med/short) + soft delete
 │   │   └── settings.ts                         ← key-value SQLite (active group, mantras enabled, …)
 │   │
 │   ├── components/
@@ -248,6 +252,9 @@ jarvis-app/
 │   │   │   ├── RoutinesModalSheet.tsx          ← Bottom sheet create-group / rename-group / create-routine
 │   │   │   ├── RoutineMonthHeatmap.tsx         ← Grille mensuelle 7×N
 │   │   │   └── RoutineWeekStrip.tsx            ← Bande Mon→Sun
+│   │   ├── objectives/                         ← Écran objectifs
+│   │   │   ├── ObjectiveRow.tsx                ← Row tickable avec burst-on-done (sans swipe-delete)
+│   │   │   └── ObjectiveHorizonSection.tsx     ← Section colorée (long/med/short) + add inline
 │   │   ├── calendar/                           ← Vue calendrier
 │   │   │   ├── CalendarMonth.tsx               ← Grille 6×7
 │   │   │   ├── CalendarWeek.tsx                ← Liste verticale 7 jours
@@ -530,21 +537,23 @@ Architecture mise en place pour éviter que chaque screen invente son propre cac
 | `routineStatsView` | `{ routineId, today }` | `RoutineStats` |
 | `routineCompletionsInRangeView` | `{ routineId, start, end }` | `Set<dayKey>` |
 | `routineCountsInRangeView` | `{ start, end }` | `Record<dayKey, RoutineDayCounts>` |
+| `objectivesView` | `'_'` (singleton) | `{ short, medium, long: Objective[] }` |
 
-+ constantes `EMPTY_TASKS`, `EMPTY_COUNTS`, `EMPTY_COMPLETIONS`, `EMPTY_STATS`, `EMPTY_STRUCTURE` — **toujours utiliser ces constantes** comme `defaultValue` pour `useView`, jamais des littéraux inline (sinon render loop avec `useSyncExternalStore`).
++ constantes `EMPTY_TASKS`, `EMPTY_COUNTS`, `EMPTY_COMPLETIONS`, `EMPTY_STATS`, `EMPTY_STRUCTURE`, `EMPTY_OBJECTIVES` — **toujours utiliser ces constantes** comme `defaultValue` pour `useView`, jamais des littéraux inline (sinon render loop avec `useSyncExternalStore`).
 
 + helpers d'invalidation coarse-grained :
 - `invalidateTasksOnDay(day)` — pour create/update/toggle/softDelete/restore d'une task
 - `invalidateAllTasks()` — pour les bulk operations multi-jours
 - `invalidateRoutineStructure()` — pour group/routine create/rename/archive/delete
 - `invalidateRoutineCompletionsOnDay(day)` — pour toggle completion (re-invalide stats + ranges aussi)
+- `invalidateObjectives()` — pour create/update/toggle/softDelete d'un objectif (scope singleton)
 
 **`mutations.ts`** — wrappers de toutes les DB writes. Chaque wrapper fait :
 1. (Optionnel) Optimistic `setLocal` via la view concernée — pour les actions qui doivent feel instant (toggle task, toggle completion, soft delete).
 2. `await dbXxx(...)` — l'écriture SQL réelle.
 3. `invalidateXxx(...)` — re-fetch des views souscrites.
 
-Exports : `createTask`, `toggleTaskDone`, `updateTask`, `softDeleteTask`, `restoreTask`, `permanentlyDeleteTask`, `softDeleteTasksBulk`, `restoreTasksBulk`, `createGroup`, `updateGroup`, `deleteGroup`, `createRoutine`, `updateRoutine`, `archiveRoutine`, `setCompletion`.
+Exports : `createTask`, `toggleTaskDone`, `updateTask`, `softDeleteTask`, `restoreTask`, `permanentlyDeleteTask`, `softDeleteTasksBulk`, `restoreTasksBulk`, `createGroup`, `updateGroup`, `deleteGroup`, `createRoutine`, `updateRoutine`, `archiveRoutine`, `setCompletion`, `createObjective`, `toggleObjectiveDone`, `updateObjective`, `softDeleteObjective`.
 
 ### Règles à respecter
 

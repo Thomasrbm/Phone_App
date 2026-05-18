@@ -17,6 +17,10 @@ import {
   type RoutineGroup,
   type RoutineStats,
 } from '@/db/routines';
+import {
+  listObjectivesByHorizon,
+  type ObjectivesByHorizon,
+} from '@/db/objectives';
 import { createKeyedView } from './subscribable';
 
 // Module-level stable defaults. useSyncExternalStore needs a stable
@@ -38,6 +42,11 @@ export type RoutineStructure = {
 export const EMPTY_STRUCTURE: RoutineStructure = {
   groups: [],
   routinesByGroup: {},
+};
+export const EMPTY_OBJECTIVES: ObjectivesByHorizon = {
+  short: [],
+  medium: [],
+  long: [],
 };
 
 // --- Tasks ---
@@ -109,6 +118,16 @@ export const routineCountsInRangeView = createKeyedView<
   ({ start, end }) => `${start}/${end}`
 );
 
+// --- Objectives ---
+
+// Singleton view: a single map of horizon → Objective[]. Mutations
+// invalidate the whole entry; the dataset is small (typically <50 rows)
+// so re-fetching is cheap.
+export const objectivesView = createKeyedView<'_', ObjectivesByHorizon>(
+  () => listObjectivesByHorizon(),
+  () => '_'
+);
+
 // --- Invalidation helpers ---
 //
 // Coarse-grained on purpose: every cache entry is small and few in
@@ -140,6 +159,11 @@ export function invalidateRoutineStructure(): void {
   routineStructureView.invalidate();
   routineStatsView.invalidate();
   routineCountsInRangeView.invalidate();
+}
+
+// Any objective create / update / toggle / delete. Singleton scope.
+export function invalidateObjectives(): void {
+  objectivesView.invalidate();
 }
 
 // A routine completion was toggled on a specific day. Refresh that day's

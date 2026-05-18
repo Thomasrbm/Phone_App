@@ -20,11 +20,21 @@ import {
   type RoutineGroup,
 } from '@/db/routines';
 import {
+  createObjective as dbCreateObjective,
+  softDeleteObjective as dbSoftDeleteObjective,
+  toggleObjectiveDone as dbToggleObjectiveDone,
+  updateObjective as dbUpdateObjective,
+  type Objective,
+  type ObjectiveHorizon,
+} from '@/db/objectives';
+import {
   completionsByDayView,
   invalidateAllTasks,
+  invalidateObjectives,
   invalidateRoutineCompletionsOnDay,
   invalidateRoutineStructure,
   invalidateTasksOnDay,
+  objectivesView,
   tasksByDayView,
 } from './views';
 
@@ -180,6 +190,71 @@ export async function archiveRoutine(id: string): Promise<void> {
 }
 
 // --- Routines: completions ---
+
+// --- Objectives ---
+
+export async function createObjective(params: {
+  title: string;
+  horizon: ObjectiveHorizon;
+  description?: string | null;
+}): Promise<Objective> {
+  const obj = await dbCreateObjective(params);
+  invalidateObjectives();
+  return obj;
+}
+
+export async function toggleObjectiveDone(
+  id: string,
+  done: boolean
+): Promise<void> {
+  // Optimistic flip on the cached snapshot — same shape as toggleTaskDone.
+  const current = objectivesView.get('_');
+  if (current) {
+    const now = new Date().toISOString();
+    const next = {
+      ...current,
+      short: current.short.map((o) =>
+        o.id === id ? { ...o, done, doneAt: done ? now : null } : o
+      ),
+      medium: current.medium.map((o) =>
+        o.id === id ? { ...o, done, doneAt: done ? now : null } : o
+      ),
+      long: current.long.map((o) =>
+        o.id === id ? { ...o, done, doneAt: done ? now : null } : o
+      ),
+    };
+    objectivesView.setLocal('_', next);
+  }
+  await dbToggleObjectiveDone(id, done);
+  invalidateObjectives();
+}
+
+export async function updateObjective(
+  id: string,
+  fields: {
+    title?: string;
+    description?: string | null;
+    horizon?: ObjectiveHorizon;
+  }
+): Promise<void> {
+  await dbUpdateObjective(id, fields);
+  invalidateObjectives();
+}
+
+export async function softDeleteObjective(id: string): Promise<void> {
+  // Optimistic remove from the cached snapshot so the swipe-delete
+  // animation finishes against a list that already excludes the row.
+  const current = objectivesView.get('_');
+  if (current) {
+    objectivesView.setLocal('_', {
+      short: current.short.filter((o) => o.id !== id),
+      medium: current.medium.filter((o) => o.id !== id),
+      long: current.long.filter((o) => o.id !== id),
+    });
+  }
+  await dbSoftDeleteObjective(id);
+  invalidateObjectives();
+}
 
 export async function setCompletion(
   routineId: string,
