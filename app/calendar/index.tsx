@@ -31,7 +31,7 @@ import DragHandle from '@/components/DragHandle';
 import TodayButton from '@/components/TodayButton';
 import ViewMenu, { type CalendarView } from '@/components/ViewMenu';
 import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
-import { toDayKey } from '@/lib/date';
+import { toDayKey, todayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
 
 const PAGES_BEFORE = 12;
@@ -306,7 +306,7 @@ export default function CalendarScreen({
     // Always land on TODAY's real date — recompute at trigger time so
     // we don't pin to a stale `today` captured at mount.
     if (onSwipeUp) onSwipeUp();
-    else router.replace(`/calendar/${toDayKey(new Date())}`);
+    else router.replace(`/calendar/${todayKey()}`);
   }, [router, onSwipeUp]);
 
   return (

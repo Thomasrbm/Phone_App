@@ -9,7 +9,7 @@ import Animated, {
 import CalendarScreen from './calendar';
 import DayScreen from './calendar/[date]';
 import RoutinesScreen from './routines';
-import { toDayKey } from '@/lib/date';
+import { todayKey } from '@/lib/date';
 
 // Hub keeps all three sibling views mounted at all times. The encoches
 // (DragHandle swipes) and intra-screen taps that used to trigger
@@ -25,7 +25,7 @@ type ActiveView = 'month' | 'day' | 'routines';
 
 export default function Hub() {
   const [view, setView] = useState<ActiveView>('day');
-  const [date, setDate] = useState<string>(() => toDayKey(new Date()));
+  const [date, setDate] = useState<string>(() => todayKey());
   const [mounted, setMounted] = useState<Set<ActiveView>>(
     () => new Set(['day'])
   );
@@ -91,7 +91,7 @@ export default function Hub() {
   }, [ensureMounted]);
 
   const goToToday = useCallback(() => {
-    setDate(toDayKey(new Date()));
+    setDate(todayKey());
     setView('day');
   }, []);
 

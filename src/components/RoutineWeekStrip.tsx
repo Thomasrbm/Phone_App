@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/lib/themeContext';
+import { parseDayKey, toDayKey } from '@/lib/date';
 
 type Props = {
   todayKey: string; // 'YYYY-MM-DD'
@@ -9,14 +10,6 @@ type Props = {
 };
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
-function toKey(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 // Compact one-line view of the current week (Mon→Sun) for a routine.
 // `todayKey` anchors the week — the row spans the Monday-rooted week
@@ -29,7 +22,7 @@ export default function RoutineWeekStrip({
   const { theme } = useTheme();
 
   const days = useMemo(() => {
-    const t = new Date(todayKey + 'T00:00:00');
+    const t = parseDayKey(todayKey);
     const jsDow = t.getDay();
     const back = (jsDow + 6) % 7;
     const monday = new Date(t);
@@ -38,7 +31,7 @@ export default function RoutineWeekStrip({
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const key = toKey(d);
+      const key = toDayKey(d);
       out.push({
         key,
         isToday: key === todayKey,

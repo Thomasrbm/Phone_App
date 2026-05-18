@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/lib/themeContext';
+import { toDayKey } from '@/lib/date';
 
 type Props = {
   year: number;
@@ -11,10 +12,6 @@ type Props = {
 };
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
-}
 
 // Calendar grid for one month. Mon-Sun rows. Completed days are filled
 // with `color`, others show an empty outline. Today gets an inner ring.
@@ -43,7 +40,7 @@ export default function RoutineMonthHeatmap({
       } else {
         list.push({
           day: dayIdx,
-          key: `${year}-${pad(month + 1)}-${pad(dayIdx)}`,
+          key: toDayKey(new Date(year, month, dayIdx)),
         });
       }
     }

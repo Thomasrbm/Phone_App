@@ -63,7 +63,7 @@ import {
   toggleTaskDone,
   type Task,
 } from '@/db/tasks';
-import { toDayKey } from '@/lib/date';
+import { toDayKey, todayKey } from '@/lib/date';
 import {
   getMantras,
   getMantrasEnabled,
@@ -491,7 +491,7 @@ const DayContent = memo(function DayContent({
   >({ todo: false, done: false });
 
   const selectMode = selectedIds.size > 0;
-  const isToday = useMemo(() => date === toDayKey(new Date()), [date]);
+  const isToday = useMemo(() => date === todayKey(), [date]);
 
   const reload = useCallback(async () => {
     const [active, removed] = await Promise.all([
@@ -806,11 +806,11 @@ const DayContent = memo(function DayContent({
   }, [router, onOpenRoutines]);
 
   const goToToday = useCallback(() => {
-    const todayKey = toDayKey(new Date());
-    if (todayKey === date) return;
-    if (onChangeDateAnimated) onChangeDateAnimated(todayKey);
-    else if (onChangeDate) onChangeDate(todayKey);
-    else router.setParams({ date: todayKey });
+    const today = todayKey();
+    if (today === date) return;
+    if (onChangeDateAnimated) onChangeDateAnimated(today);
+    else if (onChangeDate) onChangeDate(today);
+    else router.setParams({ date: today });
   }, [date, router, onChangeDate, onChangeDateAnimated]);
 
   const styles = useMemo(
@@ -1399,7 +1399,7 @@ const DayContent = memo(function DayContent({
                 hitSlop={12}
                 activeOpacity={0.6}
               >
-                {date > toDayKey(new Date()) ? (
+                {date > todayKey() ? (
                   <>
                     <Feather
                       name="arrow-left"
