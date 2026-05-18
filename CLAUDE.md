@@ -42,6 +42,7 @@ Si Thomas confirme avoir déjà fait le release build → ne pas insister, retir
    - Mêler dans un fichier le pager + la list + les modals + les animations. Un fichier = une responsabilité.
 4. **`src/data/` est le point d'attache pour la sync (phase 2).** Toute logique de cache qui contourne ce seam casse cette propriété et fera mal à brancher PowerSync plus tard.
 5. **Si un changement structurel est tentant** (« je vais juste ajouter un useState pour cacher ça vite fait »), s'arrêter : c'est exactement ce qu'on a passé une session à démanteler. Ouvrir `src/data/views.ts` à la place.
+6. **Règles métier `Objective`** : la création d'un objectif exige *titre + description + deadline* (passe par `ObjectiveCreateModal` — bouton désactivé tant que les 3 sont vides). Pas de raccourci « j'ajoute juste un titre vite fait ». La DB accepte techniquement `description NULL` / `deadline NULL` (pour les objectifs créés avant la règle), mais aucun nouveau code ne doit créer un objectif incomplet.
 
 ---
 
@@ -255,10 +256,12 @@ jarvis-app/
 │   │   │   └── RoutineWeekStrip.tsx            ← Bande Mon→Sun
 │   │   ├── objectives/                         ← Écran objectifs
 │   │   │   ├── ObjectiveRow.tsx                ← Row tickable + deadline smart label (overdue rouge)
-│   │   │   ├── ObjectiveHorizonSection.tsx     ← Section colorée + add inline (utilisée dans HorizonScreen)
+│   │   │   ├── ObjectiveHorizonSection.tsx     ← Section colorée + bouton "Ajouter" (ouvre ObjectiveCreateModal)
 │   │   │   ├── HorizonScreen.tsx               ← Écran shared per-horizon (full CRUD), monté par long/medium/short.tsx
 │   │   │   ├── HorizonSummaryCard.tsx          ← Carte tappable read-only (overview) : counter + prochaine deadline + teaser
-│   │   │   ├── ObjectivesYearView.tsx          ← 12 mini-mois 4×3 navigables par année, deadlines = cellules teintées
+│   │   │   ├── ObjectivesYearView.tsx          ← 12 mini-mois 3×4, today = point blanc, deadlines = cellules teintées
+│   │   │   ├── ObjectivesDecadeStrip.tsx       ← Frise 10 ans, indicator dot par année, navigation < décennie >
+│   │   │   ├── ObjectiveCreateModal.tsx        ← Formulaire create — titre+description+deadline OBLIGATOIRES
 │   │   │   └── DeadlinePickerModal.tsx         ← Modal calendrier mensuel + nav < mois >, selection + clear
 │   │   ├── calendar/                           ← Vue calendrier
 │   │   │   ├── CalendarMonth.tsx               ← Grille 6×7

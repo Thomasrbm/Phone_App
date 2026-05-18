@@ -1,11 +1,13 @@
-import { Feather } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { ObjectiveHorizon } from '@/db/objectives';
 import { toDayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
 
 type Props = {
+  // Year to display. Caller controls navigation (typically driven by
+  // the decade strip above).
+  year: number;
   // Map from 'YYYY-MM-DD' to the most-urgent horizon that has a
   // deadline on that day. Long takes precedence over medium, medium
   // over short — long terme is the visual "loud" signal.
@@ -25,16 +27,21 @@ const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
 // Compact "year-at-a-glance" calendar. 12 mini month grids in 3 columns
 // × 4 rows. Each day cell is filled with its horizon's accent colour
-// if a deadline lands there. Today gets a thin outline.
+// if a deadline lands there.
 //
-// No counts, no labels per day — purely a visual scan to answer "où
-// tombent mes échéances cette année ?".
+// Today gets a distinct marker: a small white dot centered in the
+// cell. The dot is always visible — whether the day is empty (sits
+// against the gray cell bg) or has a deadline (sits against the
+// horizon colour). The dot has a thin contrasting outline so it
+// reads on every background. The point is: the user must be able to
+// see "you are here" at a glance, separately from "there's a
+// deadline here".
 export default function ObjectivesYearView({
+  year,
   deadlinesByDay,
   onSelectDay,
 }: Props) {
   const { theme } = useTheme();
-  const [year, setYear] = useState(() => new Date().getFullYear());
 
   const today = useMemo(() => {
     const t = new Date();
@@ -51,23 +58,12 @@ export default function ObjectivesYearView({
           borderRadius: theme.radius.lg,
           backgroundColor: theme.colors.surfaceAlt,
         },
-        header: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: theme.spacing.md,
-          paddingHorizontal: theme.spacing.xs,
-        },
-        navBtn: {
-          width: 32,
-          height: 32,
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        yearLabel: {
+        yearHeader: {
           fontSize: theme.font.lg,
           fontWeight: '700',
           color: theme.colors.text,
+          textAlign: 'center',
+          marginBottom: theme.spacing.md,
         },
         grid: {
           flexDirection: 'row',
@@ -108,10 +104,18 @@ export default function ObjectivesYearView({
           flex: 1,
           borderRadius: 2,
           backgroundColor: 'transparent',
+          alignItems: 'center',
+          justifyContent: 'center',
         },
-        dayCellToday: {
-          borderWidth: 1,
-          borderColor: theme.colors.today,
+        // Today marker: small filled dot, white inside with a thin
+        // dark outline so it reads on every cell background.
+        todayDot: {
+          width: 5,
+          height: 5,
+          borderRadius: 2.5,
+          backgroundColor: theme.colors.surface,
+          borderWidth: 0.5,
+          borderColor: theme.colors.text,
         },
         legend: {
           flexDirection: 'row',
@@ -195,9 +199,10 @@ export default function ObjectivesYearView({
                     c.horizon !== null && {
                       backgroundColor: horizonColor(c.horizon),
                     },
-                    c.isToday && !c.horizon && styles.dayCellToday,
                   ]}
-                />
+                >
+                  {c.isToday ? <View style={styles.todayDot} /> : null}
+                </View>
               );
               if (c.horizon !== null && onSelectDay) {
                 return (
@@ -225,23 +230,7 @@ export default function ObjectivesYearView({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => setYear((y) => y - 1)}
-          style={styles.navBtn}
-          hitSlop={8}
-        >
-          <Feather name="chevron-left" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.yearLabel}>{year}</Text>
-        <TouchableOpacity
-          onPress={() => setYear((y) => y + 1)}
-          style={styles.navBtn}
-          hitSlop={8}
-        >
-          <Feather name="chevron-right" size={22} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.yearHeader}>{year}</Text>
       <View style={styles.grid}>
         {Array.from({ length: 12 }, (_, i) => renderMonth(i))}
       </View>
@@ -272,6 +261,10 @@ export default function ObjectivesYearView({
             ]}
           />
           <Text style={styles.legendText}>Court</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={styles.todayDot} />
+          <Text style={styles.legendText}>Aujourd&apos;hui</Text>
         </View>
       </View>
     </View>

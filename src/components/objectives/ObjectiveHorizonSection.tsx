@@ -1,12 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ObjectiveRow from '@/components/objectives/ObjectiveRow';
 import type { Objective, ObjectiveHorizon } from '@/db/objectives';
 import { softColorBg } from '@/lib/colors';
@@ -19,12 +13,14 @@ type Props = {
   objectives: Objective[];
   onToggle: (id: string, nextDone: boolean) => void;
   onOpen: (id: string) => void;
-  onAdd: (title: string) => void;
+  // Open the create modal — section no longer creates inline because
+  // the project rule requires title + description + deadline at
+  // creation time (cf. CLAUDE.md §11).
+  onRequestAdd: () => void;
 };
 
-// One coloured horizon block (Long terme / Moyen terme / Court terme).
-// Owns: its add input, its header counter, the list of rows. The
-// outer screen orchestrates the three sections side-by-side.
+// One coloured horizon block. Header counter + rows + "+ Ajouter" CTA
+// that opens the parent's create modal.
 export default function ObjectiveHorizonSection({
   horizon,
   title,
@@ -32,10 +28,9 @@ export default function ObjectiveHorizonSection({
   objectives,
   onToggle,
   onOpen,
-  onAdd,
+  onRequestAdd,
 }: Props) {
   const { theme } = useTheme();
-  const [draft, setDraft] = useState('');
 
   const softBg =
     softColorBg(accent, theme.colors.background, 0.1) ?? theme.colors.surfaceAlt;
@@ -80,31 +75,20 @@ export default function ObjectiveHorizonSection({
           color: theme.colors.textMuted,
           textAlign: 'center',
         },
-        addRow: {
+        addBtn: {
+          marginTop: theme.spacing.sm,
           flexDirection: 'row',
           alignItems: 'center',
-          marginTop: theme.spacing.sm,
-          paddingHorizontal: theme.spacing.md,
-          paddingVertical: theme.spacing.sm,
-          backgroundColor: theme.colors.surface,
-          borderRadius: theme.radius.md,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: `${accent}40`,
-        },
-        addInput: {
-          flex: 1,
-          fontSize: theme.font.md,
-          color: theme.colors.text,
-          paddingVertical: 4,
-        },
-        addBtn: {
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          backgroundColor: accent,
-          alignItems: 'center',
           justifyContent: 'center',
-          marginLeft: theme.spacing.sm,
+          gap: theme.spacing.sm,
+          paddingVertical: theme.spacing.md,
+          backgroundColor: accent,
+          borderRadius: theme.radius.md,
+        },
+        addBtnText: {
+          fontSize: theme.font.md,
+          fontWeight: '700',
+          color: theme.colors.textInverse,
         },
       }),
     [theme, accent, softBg]
@@ -112,13 +96,6 @@ export default function ObjectiveHorizonSection({
 
   const total = objectives.length;
   const done = objectives.filter((o) => o.done).length;
-
-  const submit = () => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    onAdd(trimmed);
-    setDraft('');
-  };
 
   return (
     <View style={styles.wrap}>
@@ -147,21 +124,14 @@ export default function ObjectiveHorizonSection({
           />
         ))
       )}
-      <View style={styles.addRow}>
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Nouvel objectif…"
-          placeholderTextColor={theme.colors.textSubtle}
-          style={styles.addInput}
-          returnKeyType="done"
-          onSubmitEditing={submit}
-          blurOnSubmit={false}
-        />
-        <TouchableOpacity onPress={submit} style={styles.addBtn} hitSlop={8}>
-          <Feather name="plus" size={16} color={theme.colors.textInverse} />
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        onPress={onRequestAdd}
+        style={styles.addBtn}
+        activeOpacity={0.8}
+      >
+        <Feather name="plus" size={18} color={theme.colors.textInverse} />
+        <Text style={styles.addBtnText}>Ajouter un objectif</Text>
+      </TouchableOpacity>
     </View>
   );
 }

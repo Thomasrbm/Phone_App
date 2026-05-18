@@ -1,7 +1,8 @@
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ObjectiveCreateModal from '@/components/objectives/ObjectiveCreateModal';
 import ObjectiveHorizonSection from '@/components/objectives/ObjectiveHorizonSection';
 import type { ObjectiveHorizon } from '@/db/objectives';
 import { createObjective, toggleObjectiveDone } from '@/data/mutations';
@@ -18,14 +19,14 @@ const TITLES: Record<ObjectiveHorizon, string> = {
   short: 'Court terme',
 };
 
-// Dedicated screen for one horizon. Renders just that horizon's
-// ObjectiveHorizonSection with full CRUD (add inline, tap to edit,
-// check to toggle). Used by the 3 static routes objectives/long.tsx,
-// /medium.tsx, /short.tsx.
+// Dedicated screen for one horizon. Renders the horizon's section
+// + manages the create modal that enforces title + description +
+// deadline at creation time.
 export default function HorizonScreen({ horizon }: Props) {
   const { theme } = useTheme();
   const router = useRouter();
   const objectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const accent =
     horizon === 'long'
@@ -45,9 +46,10 @@ export default function HorizonScreen({ horizon }: Props) {
     [router]
   );
 
-  const handleAdd = useCallback(
-    (title: string) => {
-      createObjective({ title, horizon });
+  const handleCreate = useCallback(
+    (params: { title: string; description: string; deadline: string }) => {
+      createObjective({ ...params, horizon });
+      setCreateOpen(false);
     },
     [horizon]
   );
@@ -84,9 +86,16 @@ export default function HorizonScreen({ horizon }: Props) {
           objectives={objectives[horizon]}
           onToggle={handleToggle}
           onOpen={handleOpen}
-          onAdd={handleAdd}
+          onRequestAdd={() => setCreateOpen(true)}
         />
       </ScrollView>
+      <ObjectiveCreateModal
+        visible={createOpen}
+        horizon={horizon}
+        accent={accent}
+        onClose={() => setCreateOpen(false)}
+        onCreate={handleCreate}
+      />
     </SafeAreaView>
   );
 }

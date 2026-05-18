@@ -1,20 +1,19 @@
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HorizonSummaryCard from '@/components/objectives/HorizonSummaryCard';
+import ObjectivesDecadeStrip from '@/components/objectives/ObjectivesDecadeStrip';
 import ObjectivesYearView from '@/components/objectives/ObjectivesYearView';
 import type { ObjectiveHorizon } from '@/db/objectives';
 import { EMPTY_OBJECTIVES, objectivesView } from '@/data/views';
 import { useTheme } from '@/lib/themeContext';
 
-// Overview screen: read-only summary + year-view. Every interaction
-// (add / edit / check / delete) lives behind the per-horizon sub-pages
-// (/objectives/long, /medium, /short) or the per-objective edit screen
-// (/objectives/[id]). This page never mutates.
-//
-// Long takes precedence in the year view (visually loudest) when
-// multiple horizons share a deadline day.
+// Overview screen: read-only summary + decade frieze. The detailed
+// year view is drilled-into by tapping a year in the strip. Every
+// mutation (add / edit / check / delete) lives behind the per-horizon
+// sub-pages (/objectives/long, /medium, /short) or the per-objective
+// edit screen (/objectives/[id]). This page never mutates.
 const HORIZON_PRIORITY: Record<ObjectiveHorizon, number> = {
   long: 0,
   medium: 1,
@@ -25,6 +24,7 @@ export default function ObjectivesScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const objectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   // Build a map from dayKey to the most-urgent horizon with a deadline
   // there. Skips done objectives (no point flagging completed work
@@ -49,8 +49,8 @@ export default function ObjectivesScreen() {
     return out;
   }, [objectives]);
 
-  // Tap a deadline cell → open the (first) objective that has that
-  // deadline. Priority again: long → medium → short.
+  // Tap a deadline cell in the year view → open the (first) objective
+  // that has that deadline. Long → medium → short priority.
   const handleSelectDay = useCallback(
     (dayKey: string) => {
       for (const h of ['long', 'medium', 'short'] as ObjectiveHorizon[]) {
@@ -98,13 +98,21 @@ export default function ObjectivesScreen() {
       />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
-          Aperçu de tes objectifs. Appuie sur une carte pour ouvrir, éditer ou
-          ajouter.
+          Aperçu de tes objectifs. Appuie sur une carte d&apos;horizon pour
+          gérer, ou sur une année pour zoomer.
         </Text>
-        <ObjectivesYearView
+        <ObjectivesDecadeStrip
           deadlinesByDay={deadlinesByDay}
-          onSelectDay={handleSelectDay}
+          selectedYear={selectedYear}
+          onSelectYear={setSelectedYear}
         />
+        {selectedYear !== null ? (
+          <ObjectivesYearView
+            year={selectedYear}
+            deadlinesByDay={deadlinesByDay}
+            onSelectDay={handleSelectDay}
+          />
+        ) : null}
         <HorizonSummaryCard
           title="Long terme"
           accent={theme.colors.objectiveLong}
