@@ -170,50 +170,85 @@ CREATE TABLE IF NOT EXISTS _migrations (
 ```
 jarvis-app/
 ├── CLAUDE.md
-├── README.md (Readme en réalité)
-├── app.json
-├── eas.json
+├── Readme
+├── app.config.js / app.json / eas.json / babel.config.js / tsconfig.json
 ├── package.json
-├── tsconfig.json
-├── babel.config.js
-├── .npmrc                             ← legacy-peer-deps=true (obligatoire)
-├── expo-env.d.ts                      ← /// <reference types="expo-router/types" />
-├── app/                               ← Expo Router
-│   ├── _layout.tsx                    ← GestureHandlerRootView + SafeAreaProvider + LayoutAnimation enable Android
-│   ├── index.tsx                      ← Redirect → /calendar
-│   ├── search.tsx                     ← Recherche globale (actives / supprimées, debounced)
+├── .npmrc                                      ← legacy-peer-deps=true (obligatoire)
+├── expo-env.d.ts                               ← /// <reference types="expo-router/types" />
+│
+├── app/                                        ← Expo Router (file-based routing)
+│   ├── _layout.tsx                             ← GestureHandlerRootView + SafeAreaProvider + LayoutAnimation enable Android
+│   ├── index.tsx                               ← Hub : month / day / routines toujours montés, crossfade 80 ms
+│   ├── search.tsx                              ← Recherche globale (debounced, tabs actives/supprimées)
 │   ├── calendar/
-│   │   ├── index.tsx                  ← Mois / semaine (menu hamburger), today btn, recherche du jour, multi-select
-│   │   └── [date].tsx                 ← Écran jour : sections À faire / Faits, add task inline, swipe delete, long-press multi
+│   │   ├── index.tsx                           ← CalendarScreen : mois/semaine, today btn, multi-select
+│   │   └── [date].tsx                          ← DayScreen : PagerView ±30j + far-jump overlay
+│   ├── routines/
+│   │   ├── index.tsx                           ← RoutinesScreen : pager horizontal de groupes, stats par routine
+│   │   └── [id].tsx                            ← RoutineEditScreen : titre, icône, groupe, archive
 │   ├── task/
-│   │   └── [id].tsx                   ← Édition (title, couleur, description), FAB-style ✕ dans header, 4-way swipe-back animé, transparent modal
-│   └── trash/
-│       └── [date].tsx                 ← Corbeille du jour (swipe ambre = restore, multi-select + bulk restore)
+│   │   └── [id].tsx                            ← TaskEditScreen : title, couleur, icône, description, 4-way swipe back
+│   ├── trash/
+│   │   └── [date].tsx                          ← TrashScreen : corbeille du jour, multi-select + bulk restore
+│   └── settings/
+│       ├── index.tsx                           ← Réglages généraux
+│       └── mantras.tsx                         ← Édition mantras quotidiens
+│
 ├── src/
-│   ├── db/
-│   │   ├── index.ts                   ← getDatabase mémoïsé + runMigrations au 1er accès
-│   │   ├── schema.ts                  ← DDL + ALTER statements
-│   │   ├── migrations.ts              ← Array versionnée + idempotente (PRAGMA check)
-│   │   └── tasks.ts                   ← CRUD + searchTasks + getTaskCountsInRange + soft delete
+│   ├── data/                                   ← ★ Couche store + invalidation (cf. §11)
+│   │   ├── subscribable.ts                     ← createKeyedView<K,V> : cache + load + subscribe + invalidate
+│   │   ├── views.ts                            ← Views concrets (tasksByDay, completionsByDay, …) + EMPTY_* + invalidateXxx helpers
+│   │   └── mutations.ts                        ← Wrappers DB-write : optimistic setLocal + invalidation scoped
+│   │
+│   ├── db/                                     ← SQL repo. Ne pas appeler directement depuis les screens.
+│   │   ├── index.ts                            ← getDatabase mémoïsé + runMigrations au 1er accès
+│   │   ├── schema.ts                           ← DDL + ALTER statements
+│   │   ├── migrations.ts                       ← Array versionnée + idempotente (PRAGMA check)
+│   │   ├── tasks.ts                            ← CRUD tasks + searchTasks + getTaskCountsInRange + soft delete
+│   │   ├── routines.ts                         ← CRUD groups/routines/completions + stats + counts in range
+│   │   └── settings.ts                         ← key-value SQLite (active group, mantras enabled, …)
+│   │
 │   ├── components/
-│   │   ├── CalendarMonth.tsx          ← Grille 6×7, highlight semaine courante
-│   │   ├── CalendarWeek.tsx           ← Liste verticale 7 jours (swipe semaine)
-│   │   ├── CalendarDayCell.tsx        ← Cellule jour + pill counter X/Y
-│   │   ├── TodayButton.tsx            ← Mini page calendrier cliquable
-│   │   ├── ViewMenu.tsx               ← Modal Mois/Semaine
-│   │   ├── TaskItem.tsx               ← Row avec checkbox/tick, swipe actions, select mode
-│   │   └── AddTaskInput.tsx           ← Bar mini (52px) → expanded (drag 3-snap) avec couleur + description
-│   ├── hooks/                         ← vide pour l'instant
-│   ├── lib/
-│   │   ├── date.ts                    ← toDayKey
-│   │   ├── uuid.ts                    ← UUID v4 Math.random (phase 1 suffit)
-│   │   ├── theme.ts                   ← palette centralisée (inspirée Notion)
-│   │   └── colors.ts                  ← TASK_COLORS[] + softColorBg (opaque via blend blanc)
-│   └── types/                         ← vide (types inline dans tasks.ts)
-└── assets/
-    ├── icon.png
-    ├── adaptive-icon.png
-    └── splash-icon.png
+│   │   ├── day/                                ← Écran jour
+│   │   │   ├── DayContent.tsx                  ← Memo'd contenu d'un jour (list + handlers + mantra)
+│   │   │   ├── DayHeader.tsx                   ← Top bar (action row OU select mode)
+│   │   │   ├── DayBottomBar.tsx                ← Chevrons + DragHandle calendrier
+│   │   │   ├── DayProgressCard.tsx             ← « Progrès du jour » + all-done-pop animation
+│   │   │   ├── DayRoutinesSection.tsx          ← Pager de groupes + collapse animation
+│   │   │   └── FarJumpOverlay.tsx              ← Slide-in panel pendant un re-anchor lointain
+│   │   ├── routines/                           ← Écran routines
+│   │   │   ├── RoutineStatsCard.tsx            ← Card per-routine (souscrit à ses propres stats + completions)
+│   │   │   ├── RoutineGroupChip.tsx            ← Chip avec couleur interpolée pendant le swipe
+│   │   │   ├── RoutineRow.tsx                  ← Row tickable avec burst-on-done
+│   │   │   ├── RoutinesModalSheet.tsx          ← Bottom sheet create-group / rename-group / create-routine
+│   │   │   ├── RoutineMonthHeatmap.tsx         ← Grille mensuelle 7×N
+│   │   │   └── RoutineWeekStrip.tsx            ← Bande Mon→Sun
+│   │   ├── calendar/                           ← Vue calendrier
+│   │   │   ├── CalendarMonth.tsx               ← Grille 6×7
+│   │   │   ├── CalendarWeek.tsx                ← Liste verticale 7 jours
+│   │   │   ├── CalendarDayCell.tsx             ← Cellule + pill counter
+│   │   │   ├── TodayButton.tsx                 ← Mini page calendrier
+│   │   │   └── ViewMenu.tsx                    ← Modal Mois/Semaine
+│   │   └── shared/                             ← Réutilisés
+│   │       ├── TaskItem.tsx                    ← Row checkbox + swipe actions
+│   │       ├── AddTaskInput.tsx                ← Bar mini → 3 paliers via drag
+│   │       ├── DragHandle.tsx                  ← Encoche cliquable + swipe
+│   │       ├── IconPicker.tsx                  ← Picker d'icône Feather
+│   │       └── AutoSizeMantra.tsx              ← Texte auto-fit
+│   │
+│   ├── hooks/
+│   │   └── useActiveGroupId.ts                 ← Active group state machine (load setting + fallback + persist)
+│   │
+│   └── lib/
+│       ├── date.ts                             ← toDayKey, todayKey, parseDayKey, enumerateDays
+│       ├── uuid.ts                             ← UUID v4 Math.random
+│       ├── theme.ts + themeContext.tsx         ← Palette centralisée (inspirée Notion)
+│       ├── colors.ts                           ← TASK_COLORS[] + softColorBg
+│       ├── icons.ts                            ← FeatherName type + curated list
+│       └── mantras.ts                          ← Mantras quotidiens (lecture, pick déterministe par jour)
+│
+├── assets/                                     ← icon.png, adaptive-icon.png, splash-icon.png
+└── docs/                                       ← Journal projet (historic.md, POLISH.md, ETAPES_FAITES/)
 ```
 
 **Interdit tant qu'on n'y est pas :** `src/ai/`, `src/sync/`, `src/mcp/`, `src/powersync/`.
@@ -247,6 +282,11 @@ jarvis-app/
 - Migrations versionnées **et idempotentes** (vérif `PRAGMA table_info` avant `ALTER`). Appliquées au boot par `runMigrations`.
 - Toutes les lectures de tâches "actives" filtrent `deleted_at IS NULL`. Exceptions explicites pour la corbeille.
 - Nouveau changement de schéma = **nouvelle migration**. Jamais `DROP` ni modif de migration existante.
+
+**Data layer (cf. §11) :**
+- Les screens **ne lisent jamais directement** `src/db/*` pour des données dérivées (listes, comptages, stats). Ils passent par `src/data/views.ts` (`view.useView(key, EMPTY_DEFAULT)`).
+- Toute écriture passe par `src/data/mutations.ts` (jamais d'appel direct à `dbToggleTaskDone`, `dbCreateTask`, etc.). Les mutations font DB write + invalidation scoped.
+- Exception lecture : objets uniques par id (e.g. `getTaskById` dans `/task/[id]`, `getRoutineById` dans `/routines/[id]`) — c'est OK d'appeler directement.
 
 **Animations :**
 - Reanimated 3 pour tout ce qui bouge (shared values, worklets, `useAnimatedStyle`).
@@ -438,3 +478,59 @@ Documentation explicite des merdes traversées pour que Claude Code ne les redé
 - Branch `feat/xxx`, `fix/xxx`, `chore/xxx`. Pas direct sur main.
 - Si rebuild EAS nécessaire (ajout lib native), **le signaler explicitement** avant de commiter. Je déclencherai le build moi-même.
 - Si une action est destructive (suppression DB, `git rm`, force push), **demander confirmation** d'abord.
+
+---
+
+## 11. Couche data (`src/data/`)
+
+Architecture mise en place pour éviter que chaque screen invente son propre cache + protocole d'invalidation. À comprendre **avant** de toucher un screen qui lit ou écrit des données.
+
+### Composants
+
+**`subscribable.ts`** — primitive générique `createKeyedView<TKey, TValue>(loader, keyToString?)`. Retourne :
+- `useView(key, defaultValue)` — hook React (basé sur `useSyncExternalStore`). S'abonne à la clé, déclenche un load au premier render si pas en cache, re-render à chaque notify.
+- `load(key)` — fetch + cache + notify. Dédupliqué via une map `inflight`.
+- `get(key)` / `setLocal(key, value)` / `clear(key)` — accès synchrone (utilisé par les mutations pour les optimistic updates).
+- `invalidate(filter?)` — re-fetch les clés souscrites qui matchent le filtre, évince les clés non souscrites.
+
+**`views.ts`** — déclare 8 views concrets :
+
+| View | Clé | Valeur |
+|---|---|---|
+| `tasksByDayView` | `dayKey: string` | `Task[]` |
+| `deletedTasksByDayView` | `dayKey: string` | `Task[]` |
+| `taskCountsInRangeView` | `{ start, end }` | `Record<dayKey, DayCounts>` |
+| `routineStructureView` | `'_'` (singleton) | `{ groups, routinesByGroup }` |
+| `completionsByDayView` | `dayKey: string` | `Set<routineId>` |
+| `routineStatsView` | `{ routineId, today }` | `RoutineStats` |
+| `routineCompletionsInRangeView` | `{ routineId, start, end }` | `Set<dayKey>` |
+| `routineCountsInRangeView` | `{ start, end }` | `Record<dayKey, RoutineDayCounts>` |
+
++ constantes `EMPTY_TASKS`, `EMPTY_COUNTS`, `EMPTY_COMPLETIONS`, `EMPTY_STATS`, `EMPTY_STRUCTURE` — **toujours utiliser ces constantes** comme `defaultValue` pour `useView`, jamais des littéraux inline (sinon render loop avec `useSyncExternalStore`).
+
++ helpers d'invalidation coarse-grained :
+- `invalidateTasksOnDay(day)` — pour create/update/toggle/softDelete/restore d'une task
+- `invalidateAllTasks()` — pour les bulk operations multi-jours
+- `invalidateRoutineStructure()` — pour group/routine create/rename/archive/delete
+- `invalidateRoutineCompletionsOnDay(day)` — pour toggle completion (re-invalide stats + ranges aussi)
+
+**`mutations.ts`** — wrappers de toutes les DB writes. Chaque wrapper fait :
+1. (Optionnel) Optimistic `setLocal` via la view concernée — pour les actions qui doivent feel instant (toggle task, toggle completion, soft delete).
+2. `await dbXxx(...)` — l'écriture SQL réelle.
+3. `invalidateXxx(...)` — re-fetch des views souscrites.
+
+Exports : `createTask`, `toggleTaskDone`, `updateTask`, `softDeleteTask`, `restoreTask`, `permanentlyDeleteTask`, `softDeleteTasksBulk`, `restoreTasksBulk`, `createGroup`, `updateGroup`, `deleteGroup`, `createRoutine`, `updateRoutine`, `archiveRoutine`, `setCompletion`.
+
+### Règles à respecter
+
+1. **Lire = `view.useView(key, EMPTY_DEFAULT)`** dans le component. Jamais `useState + useFocusEffect + reload` pour des données dérivées.
+2. **Écrire = appeler un wrapper de `@/data/mutations`**. Jamais `dbCreateTask` direct depuis un screen.
+3. **`EMPTY_X` doit être une référence stable** (constante module-level dans `views.ts`). Ne JAMAIS muter (`.push`, `.add`, etc.) — c'est typé mutable mais conceptuellement readonly.
+4. **Ajouter un nouveau view** : `createKeyedView(loader, keyToString)`. Si singleton, key = `'_'` avec `keyToString = () => '_'`.
+5. **Ajouter une nouvelle mutation** : wrapper dans `mutations.ts` qui fait DB write + `invalidateXxx(scope)`. Si l'action a un feel-instant requirement, ajouter `setLocal(optimistic)` avant l'await.
+6. **N'invente pas un cache module-level** dans un screen (`let cachedX = …`). La couche `data/` est l'unique seam.
+7. **Pas de callbacks `onTasksChanged` / `onRoutinesChanged`** entre screens. L'invalidation est globale via la couche `data/` ; les screens se mettent à jour automatiquement via leur subscription.
+
+### Quand re-déduire au lieu de mémoiser
+
+Pour des données par-item (e.g. stats par routine), un seul screen ne peut pas appeler `useView` dans une boucle (rules of hooks). **Extraire un sous-composant** qui souscrit à ses propres views (cf. `RoutineStatsCard.tsx`).
