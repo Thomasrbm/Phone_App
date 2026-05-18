@@ -16,11 +16,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DragHandle from '@/components/DragHandle';
+import DragHandle from '@/components/shared/DragHandle';
 import RoutinesModalSheet, {
   type RoutinesModalState,
-} from '@/components/RoutinesModalSheet';
-import RoutineStatsCard from '@/components/RoutineStatsCard';
+} from '@/components/routines/RoutinesModalSheet';
+import RoutineStatsCard from '@/components/routines/RoutineStatsCard';
 import type { Routine, RoutineGroup } from '@/db/routines';
 import {
   archiveRoutine,

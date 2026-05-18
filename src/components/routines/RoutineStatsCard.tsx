@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import RoutineMonthHeatmap from '@/components/RoutineMonthHeatmap';
-import RoutineWeekStrip from '@/components/RoutineWeekStrip';
+import RoutineMonthHeatmap from '@/components/routines/RoutineMonthHeatmap';
+import RoutineWeekStrip from '@/components/routines/RoutineWeekStrip';
 import type { Routine } from '@/db/routines';
 import {
   EMPTY_COMPLETIONS,

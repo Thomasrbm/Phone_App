@@ -5,8 +5,8 @@ import { useWindowDimensions, View } from 'react-native';
 import PagerView, {
   type PagerViewOnPageSelectedEvent,
 } from 'react-native-pager-view';
-import DayContent from '@/components/DayContent';
-import FarJumpOverlay from '@/components/FarJumpOverlay';
+import DayContent from '@/components/day/DayContent';
+import FarJumpOverlay from '@/components/day/FarJumpOverlay';
 import { EMPTY_STRUCTURE, routineStructureView } from '@/data/views';
 import { useActiveGroupId } from '@/hooks/useActiveGroupId';
 import { toDayKey } from '@/lib/date';

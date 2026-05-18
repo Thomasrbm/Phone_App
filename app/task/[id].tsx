@@ -25,7 +25,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import IconPicker from '@/components/IconPicker';
+import IconPicker from '@/components/shared/IconPicker';
 import { TASK_COLORS } from '@/lib/colors';
 import type { FeatherName } from '@/lib/icons';
 import { useTheme } from '@/lib/themeContext';

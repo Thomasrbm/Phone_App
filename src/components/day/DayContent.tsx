@@ -18,13 +18,13 @@ import Animated, {
   LinearTransition,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AddTaskInput from '@/components/AddTaskInput';
-import AutoSizeMantra from '@/components/AutoSizeMantra';
-import DayBottomBar from '@/components/DayBottomBar';
-import DayHeader from '@/components/DayHeader';
-import DayProgressCard from '@/components/DayProgressCard';
-import DayRoutinesSection from '@/components/DayRoutinesSection';
-import TaskItem from '@/components/TaskItem';
+import AddTaskInput from '@/components/shared/AddTaskInput';
+import AutoSizeMantra from '@/components/shared/AutoSizeMantra';
+import DayBottomBar from '@/components/day/DayBottomBar';
+import DayHeader from '@/components/day/DayHeader';
+import DayProgressCard from '@/components/day/DayProgressCard';
+import DayRoutinesSection from '@/components/day/DayRoutinesSection';
+import TaskItem from '@/components/shared/TaskItem';
 import type { Routine, RoutineGroup } from '@/db/routines';
 import type { Task } from '@/db/tasks';
 import {

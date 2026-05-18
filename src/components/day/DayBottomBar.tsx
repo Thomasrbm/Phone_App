@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import DragHandle from '@/components/DragHandle';
+import DragHandle from '@/components/shared/DragHandle';
 import { useTheme } from '@/lib/themeContext';
 
 type Props = {

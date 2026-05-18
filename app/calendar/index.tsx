@@ -25,11 +25,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CalendarMonth from '@/components/CalendarMonth';
-import CalendarWeek from '@/components/CalendarWeek';
-import DragHandle from '@/components/DragHandle';
-import TodayButton from '@/components/TodayButton';
-import ViewMenu, { type CalendarView } from '@/components/ViewMenu';
+import CalendarMonth from '@/components/calendar/CalendarMonth';
+import CalendarWeek from '@/components/calendar/CalendarWeek';
+import DragHandle from '@/components/shared/DragHandle';
+import TodayButton from '@/components/calendar/TodayButton';
+import ViewMenu, { type CalendarView } from '@/components/calendar/ViewMenu';
 import { EMPTY_COUNTS, taskCountsInRangeView } from '@/data/views';
 import { toDayKey, todayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import IconPicker from '@/components/IconPicker';
+import IconPicker from '@/components/shared/IconPicker';
 import {
   getRoutineById,
   listGroups,

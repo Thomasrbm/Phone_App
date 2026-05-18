@@ -19,8 +19,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import RoutineGroupChip from '@/components/RoutineGroupChip';
-import RoutineRow from '@/components/RoutineRow';
+import RoutineGroupChip from '@/components/routines/RoutineGroupChip';
+import RoutineRow from '@/components/routines/RoutineRow';
 import type { Routine, RoutineGroup } from '@/db/routines';
 import { softColorBg } from '@/lib/colors';
 import { useTheme } from '@/lib/themeContext';
