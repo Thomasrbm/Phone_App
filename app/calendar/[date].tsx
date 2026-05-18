@@ -121,6 +121,11 @@ type DayScreenProps = {
   // Called after any task mutation so sibling views in the hub (notably
   // the month view) know they need to refetch derived data.
   onTasksChanged?: () => void;
+  // Hub mode: bumped by the routines screen after any structural change
+  // (group/routine create/delete/rename/archive). useFocusEffect doesn't
+  // fire in hub mode (this screen never loses focus, just opacity), so
+  // without this the routines section would stay stale.
+  routinesVersion?: number;
 };
 
 export default function DayScreen({
@@ -130,6 +135,7 @@ export default function DayScreen({
   onSwipeUp,
   onOpenRoutines,
   onTasksChanged,
+  routinesVersion,
 }: DayScreenProps = {}) {
   const { theme } = useTheme();
   const routeParams = useLocalSearchParams<{ date: string }>();
@@ -155,40 +161,63 @@ export default function DayScreen({
     Record<string, Routine[]>
   >(() => routinesCache.routinesByGroup);
 
+  const loadRoutinesData = useCallback(
+    async (signal: { cancelled: boolean }) => {
+      const [allGroups, storedActive] = await Promise.all([
+        listGroups(),
+        getSetting(ACTIVE_GROUP_KEY),
+      ]);
+      if (signal.cancelled) return;
+      setGroups(allGroups);
+      const fallback = allGroups[0]?.id ?? null;
+      const active =
+        storedActive && allGroups.some((g) => g.id === storedActive)
+          ? storedActive
+          : fallback;
+      setActiveGroupId(active);
+      const lists = await Promise.all(
+        allGroups.map((g) => listRoutinesByGroup(g.id))
+      );
+      if (signal.cancelled) return;
+      const map: Record<string, Routine[]> = {};
+      allGroups.forEach((g, i) => {
+        map[g.id] = lists[i];
+      });
+      setRoutinesByGroup(map);
+      routinesCache.groups = allGroups;
+      routinesCache.activeGroupId = active;
+      routinesCache.routinesByGroup = map;
+    },
+    []
+  );
+
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        const [allGroups, storedActive] = await Promise.all([
-          listGroups(),
-          getSetting(ACTIVE_GROUP_KEY),
-        ]);
-        if (cancelled) return;
-        setGroups(allGroups);
-        const fallback = allGroups[0]?.id ?? null;
-        const active =
-          storedActive && allGroups.some((g) => g.id === storedActive)
-            ? storedActive
-            : fallback;
-        setActiveGroupId(active);
-        const lists = await Promise.all(
-          allGroups.map((g) => listRoutinesByGroup(g.id))
-        );
-        if (cancelled) return;
-        const map: Record<string, Routine[]> = {};
-        allGroups.forEach((g, i) => {
-          map[g.id] = lists[i];
-        });
-        setRoutinesByGroup(map);
-        routinesCache.groups = allGroups;
-        routinesCache.activeGroupId = active;
-        routinesCache.routinesByGroup = map;
-      })();
+      const signal = { cancelled: false };
+      loadRoutinesData(signal);
       return () => {
-        cancelled = true;
+        signal.cancelled = true;
       };
-    }, [])
+    }, [loadRoutinesData])
   );
+
+  // Hub mode bridge: useFocusEffect never re-fires here (the hub keeps
+  // all views mounted), so a structural change made on the routines
+  // screen would leave this screen's state stale. The hub bumps
+  // routinesVersion after each such change → we refetch.
+  const firstRoutinesVersion = useRef(true);
+  useEffect(() => {
+    if (routinesVersion === undefined) return;
+    if (firstRoutinesVersion.current) {
+      firstRoutinesVersion.current = false;
+      return;
+    }
+    const signal = { cancelled: false };
+    loadRoutinesData(signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [routinesVersion, loadRoutinesData]);
 
   const handleSelectGroup = useCallback((groupId: string) => {
     setActiveGroupId(groupId);

@@ -77,11 +77,15 @@ type Props = {
   // through onSwipeUp callback instead of router.replace.
   hubMode?: boolean;
   onSwipeUp?: () => void;
+  // Hub mode: called after each structural mutation so the day view
+  // (which keeps its own copy of groups/routines state) refetches.
+  onRoutinesChanged?: () => void;
 };
 
 export default function RoutinesTrackerScreen({
   hubMode,
   onSwipeUp,
+  onRoutinesChanged,
 }: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -278,7 +282,8 @@ export default function RoutinesTrackerScreen({
                 );
                 return;
               }
-              reload();
+              await reload();
+              onRoutinesChanged?.();
             },
           },
           { text: 'Annuler', style: 'cancel' },
@@ -286,7 +291,7 @@ export default function RoutinesTrackerScreen({
         { cancelable: true }
       );
     },
-    [reload]
+    [reload, onRoutinesChanged]
   );
 
   const handleArchiveRoutine = useCallback(
@@ -302,12 +307,13 @@ export default function RoutinesTrackerScreen({
             onPress: async () => {
               await archiveRoutine(routine.id);
               await reload();
+              onRoutinesChanged?.();
             },
           },
         ]
       );
     },
-    [reload]
+    [reload, onRoutinesChanged]
   );
 
   const closeModal = useCallback(() => {
@@ -331,6 +337,7 @@ export default function RoutinesTrackerScreen({
       await setSetting(ACTIVE_GROUP_KEY, g.id);
       setActiveGroupId(g.id);
       await reload();
+      onRoutinesChanged?.();
     } else if (modal.type === 'rename-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
@@ -339,7 +346,8 @@ export default function RoutinesTrackerScreen({
       }
       await updateGroup(modal.id, { name: trimmed, color: modal.color });
       closeModal();
-      reload();
+      await reload();
+      onRoutinesChanged?.();
     } else if (modal.type === 'create-routine') {
       const trimmed = modal.name.trim();
       if (!trimmed || !activeGroupId) {
@@ -349,8 +357,9 @@ export default function RoutinesTrackerScreen({
       await createRoutine({ groupId: activeGroupId, title: trimmed });
       closeModal();
       await reload();
+      onRoutinesChanged?.();
     }
-  }, [modal, activeGroupId, reload, closeModal]);
+  }, [modal, activeGroupId, reload, closeModal, onRoutinesChanged]);
 
   // FlatList ignores prop changes outside `data` unless `extraData` flips.
   // Adding a routine changes routinesByGroup/stats/completions but leaves

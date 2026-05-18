@@ -44,6 +44,15 @@ export default function Hub() {
       setTasksVersion((v) => v + 1);
     }
   }, []);
+  // Routines structure changes (group/routine create/delete/rename/archive)
+  // need to reach the day view immediately. Unlike tasksVersion (lazy:
+  // flushed when month becomes active), this is bumped synchronously
+  // because the day view is the consumer and is typically visible right
+  // after the user finishes editing on the routines screen.
+  const [routinesVersion, setRoutinesVersion] = useState(0);
+  const bumpRoutines = useCallback(() => {
+    setRoutinesVersion((v) => v + 1);
+  }, []);
 
   const ensureMounted = useCallback((v: ActiveView) => {
     setMounted((prev) => {
@@ -137,6 +146,7 @@ export default function Hub() {
           onSwipeUp={goToMonth}
           onOpenRoutines={goToRoutines}
           onTasksChanged={markTasksDirty}
+          routinesVersion={routinesVersion}
         />
       </Animated.View>
 
@@ -149,7 +159,11 @@ export default function Hub() {
         pointerEvents={view === 'routines' ? 'auto' : 'none'}
       >
         {mounted.has('routines') ? (
-          <RoutinesScreen hubMode onSwipeUp={() => goToDay()} />
+          <RoutinesScreen
+            hubMode
+            onSwipeUp={() => goToDay()}
+            onRoutinesChanged={bumpRoutines}
+          />
         ) : null}
       </Animated.View>
     </View>
