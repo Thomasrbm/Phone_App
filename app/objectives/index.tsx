@@ -3,17 +3,21 @@ import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import HorizonSummaryCard from '@/components/objectives/HorizonSummaryCard';
-import ObjectivesDecadeStrip from '@/components/objectives/ObjectivesDecadeStrip';
+import ObjectivesTimelineArrow from '@/components/objectives/ObjectivesTimelineArrow';
+import ObjectivesYearPickerModal from '@/components/objectives/ObjectivesYearPickerModal';
 import ObjectivesYearView from '@/components/objectives/ObjectivesYearView';
 import type { ObjectiveHorizon } from '@/db/objectives';
 import { EMPTY_OBJECTIVES, objectivesView } from '@/data/views';
 import { useTheme } from '@/lib/themeContext';
 
-// Overview screen: read-only summary + decade frieze. The detailed
-// year view is drilled-into by tapping a year in the strip. Every
-// mutation (add / edit / check / delete) lives behind the per-horizon
-// sub-pages (/objectives/long, /medium, /short) or the per-objective
-// edit screen (/objectives/[id]). This page never mutates.
+// Overview screen: timeline arrow (long-term only) + 3 tappable
+// horizon summary cards. Tap the timeline → opens a year picker.
+// Pick a year → year detail view appears (all horizons, not just
+// long).
+//
+// Read-only. Every mutation (add / edit / check / delete) lives
+// behind the per-horizon sub-pages (/objectives/long, /medium,
+// /short) or the per-objective edit screen (/objectives/[id]).
 const HORIZON_PRIORITY: Record<ObjectiveHorizon, number> = {
   long: 0,
   medium: 1,
@@ -25,10 +29,9 @@ export default function ObjectivesScreen() {
   const router = useRouter();
   const objectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Build a map from dayKey to the most-urgent horizon with a deadline
-  // there. Skips done objectives (no point flagging completed work
-  // visually).
+  // Map from dayKey → most-urgent horizon, fed to the year view.
   const deadlinesByDay = useMemo(() => {
     const out = new Map<string, ObjectiveHorizon>();
     const consider = (list: typeof objectives.long) => {
@@ -48,6 +51,28 @@ export default function ObjectivesScreen() {
     consider(objectives.short);
     return out;
   }, [objectives]);
+
+  // Years with at least one long-term deadline (timeline shows only
+  // long terme — the user's mental model: the arrow is the strategic
+  // horizon, the year view is where the tactical layers surface).
+  const longDeadlineYears = useMemo(() => {
+    const out = new Set<number>();
+    for (const o of objectives.long) {
+      if (o.done || !o.deadline) continue;
+      out.add(parseInt(o.deadline.slice(0, 4), 10));
+    }
+    return out;
+  }, [objectives.long]);
+
+  // Per-year deadline counts (all horizons) for the picker meta.
+  const deadlineCountByYear = useMemo(() => {
+    const out = new Map<number, number>();
+    for (const [dayKey] of deadlinesByDay) {
+      const y = parseInt(dayKey.slice(0, 4), 10);
+      out.set(y, (out.get(y) ?? 0) + 1);
+    }
+    return out;
+  }, [deadlinesByDay]);
 
   // Tap a deadline cell in the year view → open the (first) objective
   // that has that deadline. Long → medium → short priority.
@@ -99,12 +124,11 @@ export default function ObjectivesScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <Text style={styles.intro}>
           Aperçu de tes objectifs. Appuie sur une carte d&apos;horizon pour
-          gérer, ou sur une année pour zoomer.
+          gérer, ou sur la frise pour zoomer sur une année.
         </Text>
-        <ObjectivesDecadeStrip
-          deadlinesByDay={deadlinesByDay}
-          selectedYear={selectedYear}
-          onSelectYear={setSelectedYear}
+        <ObjectivesTimelineArrow
+          longDeadlineYears={longDeadlineYears}
+          onTap={() => setPickerOpen(true)}
         />
         {selectedYear !== null ? (
           <ObjectivesYearView
@@ -132,6 +156,16 @@ export default function ObjectivesScreen() {
           onPress={() => router.push('/objectives/short')}
         />
       </ScrollView>
+      <ObjectivesYearPickerModal
+        visible={pickerOpen}
+        selectedYear={selectedYear}
+        deadlineCountByYear={deadlineCountByYear}
+        onClose={() => setPickerOpen(false)}
+        onPick={(y) => {
+          setSelectedYear(y);
+          setPickerOpen(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
