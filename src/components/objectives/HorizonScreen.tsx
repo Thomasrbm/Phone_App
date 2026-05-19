@@ -47,11 +47,19 @@ export default function HorizonScreen({ horizon }: Props) {
   );
 
   const handleCreate = useCallback(
-    (params: { title: string; description: string; deadline: string }) => {
-      createObjective({ ...params, horizon });
+    (params: {
+      title: string;
+      description: string;
+      deadline: string;
+      horizon: ObjectiveHorizon;
+    }) => {
+      // params.horizon is forced to match `horizon` by the modal
+      // because we pass `horizon` as a fixed prop — but we still
+      // accept the field so the modal can stay symmetric.
+      createObjective(params);
       setCreateOpen(false);
     },
-    [horizon]
+    []
   );
 
   const styles = useMemo(
@@ -92,7 +100,6 @@ export default function HorizonScreen({ horizon }: Props) {
       <ObjectiveCreateModal
         visible={createOpen}
         horizon={horizon}
-        accent={accent}
         onClose={() => setCreateOpen(false)}
         onCreate={handleCreate}
       />

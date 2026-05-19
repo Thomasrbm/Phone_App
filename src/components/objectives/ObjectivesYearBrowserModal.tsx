@@ -1,11 +1,14 @@
 import { Feather } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,6 +115,11 @@ export default function ObjectivesYearBrowserModal({
 
 // --- Detail mode ---
 
+// Width of the windowed pager around the selected year. Each side
+// gets WINDOW_HALF pages so swiping a couple of years is instant.
+// Far jumps re-anchor the window via the picker.
+const WINDOW_HALF = 10;
+
 function DetailInner({
   year,
   deadlinesByDay,
@@ -131,6 +139,75 @@ function DetailInner({
 }) {
   const { theme } = useTheme();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const { width } = useWindowDimensions();
+  const pagerRef = useRef<FlatList<number>>(null);
+  // The year prop drives the window's center. We rebuild the window
+  // whenever the user re-anchors via picker (i.e. the parent passes
+  // a year outside the current window), but adjacent < > / swipe
+  // moves don't trigger a rebuild — they just scroll within the
+  // existing window.
+  const [windowAnchor, setWindowAnchor] = useState(year);
+  const years = useMemo(() => {
+    const out: number[] = [];
+    for (let i = -WINDOW_HALF; i <= WINDOW_HALF; i++) {
+      out.push(windowAnchor + i);
+    }
+    return out;
+  }, [windowAnchor]);
+
+  // If `year` drifts outside the window (far jump via picker), re-
+  // anchor so the new year lands at the center.
+  useEffect(() => {
+    if (Math.abs(year - windowAnchor) > WINDOW_HALF) {
+      setWindowAnchor(year);
+    }
+  }, [year, windowAnchor]);
+
+  // Scroll the pager to the year's offset whenever the year changes
+  // from outside (chevron taps come through the prop, which routes
+  // here). Skip when the change came from a swipe — we set
+  // isInternalNav before calling onPrev/onNext for that purpose.
+  const isInternalNav = useRef(false);
+  useEffect(() => {
+    if (isInternalNav.current) {
+      isInternalNav.current = false;
+      return;
+    }
+    const idx = years.indexOf(year);
+    if (idx < 0) return;
+    pagerRef.current?.scrollToOffset({
+      offset: idx * width,
+      animated: false,
+    });
+  }, [year, years, width]);
+
+  const handleMomentumEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+      const newYear = years[idx];
+      if (newYear !== undefined && newYear !== year) {
+        // Tell the next useEffect not to re-scroll — we're already at
+        // the right offset.
+        isInternalNav.current = true;
+        // Route through onPrev/onNext if 1-step, else simulate by
+        // calling both? Cleaner: derive a delta and emit it once.
+        const delta = newYear - year;
+        if (delta === 1) onNext();
+        else if (delta === -1) onPrev();
+        else {
+          // Multi-step swipe (rare, gesture overshoots). Walk it.
+          if (delta > 0) for (let i = 0; i < delta; i++) onNext();
+          else for (let i = 0; i < -delta; i++) onPrev();
+        }
+      }
+    },
+    [years, year, width, onNext, onPrev]
+  );
+
+  const initialIndex = useMemo(() => {
+    const i = years.indexOf(year);
+    return i >= 0 ? i : WINDOW_HALF;
+  }, [years, year]);
 
   const styles = useMemo(
     () =>
@@ -215,10 +292,29 @@ function DetailInner({
         <Feather name="list" size={14} color={theme.colors.textMuted} />
         <Text style={styles.pickerCtaText}>Choisir une autre année</Text>
       </TouchableOpacity>
-      <ObjectivesYearView
-        year={year}
-        deadlinesByDay={deadlinesByDay}
-        onSelectDay={onSelectDay}
+      <FlatList
+        ref={pagerRef}
+        data={years}
+        keyExtractor={(y) => String(y)}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        initialScrollIndex={initialIndex}
+        getItemLayout={(_, index) => ({
+          length: width,
+          offset: width * index,
+          index,
+        })}
+        onMomentumScrollEnd={handleMomentumEnd}
+        renderItem={({ item: y }) => (
+          <View style={{ width }}>
+            <ObjectivesYearView
+              year={y}
+              deadlinesByDay={deadlinesByDay}
+              onSelectDay={onSelectDay}
+            />
+          </View>
+        )}
       />
     </>
   );

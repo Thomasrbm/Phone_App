@@ -258,12 +258,14 @@ jarvis-app/
 │   │   │   ├── ObjectiveRow.tsx                ← Row tickable + deadline smart label (overdue rouge)
 │   │   │   ├── ObjectiveHorizonSection.tsx     ← Section colorée + bouton "Ajouter" (ouvre ObjectiveCreateModal)
 │   │   │   ├── HorizonScreen.tsx               ← Écran shared per-horizon (full CRUD), monté par long/medium/short.tsx
-│   │   │   ├── HorizonSummaryCard.tsx          ← Carte tappable read-only (overview) : counter + prochaine deadline + teaser
+│   │   │   ├── HorizonTile.tsx                 ← Tile compact 1/3 width (overview), counter + next deadline, tap = drill-in
+│   │   │   ├── ObjectivesStatsHeader.tsx       ← Strip 3 colonnes : done/total · en retard (rouge si >0) · cette semaine
+│   │   │   ├── ObjectivesFab.tsx               ← FAB + flottant pour create-anywhere depuis l'overview
 │   │   │   ├── ObjectivesYearView.tsx          ← 12 mini-mois 3×4, today = point blanc, deadlines = cellules teintées
 │   │   │   ├── ObjectivesTimelineArrow.tsx     ← Flèche chronologique horizontale, ticks 5 ans, dots rouges (long uniquement)
-│   │   │   ├── ObjectivesYearBrowserModal.tsx  ← Modal full-screen 2 modes (detail < year > + picker scrollable). Tap timeline = open.
+│   │   │   ├── ObjectivesYearBrowserModal.tsx  ← Modal full-screen, mode detail (swipe horizontal pour changer d'année) + mode picker
 │   │   │   ├── UpcomingDeadlinesList.tsx       ← Top N prochaines deadlines sortées (tous horizons confondus)
-│   │   │   ├── ObjectiveCreateModal.tsx        ← Formulaire create — titre+description+deadline OBLIGATOIRES, kb height tracking
+│   │   │   ├── ObjectiveCreateModal.tsx        ← Formulaire create — titre+description+deadline OBLIGATOIRES, horizon picker si pas de prop, kb height tracking
 │   │   │   └── DeadlinePickerModal.tsx         ← Modal calendrier mensuel + nav < mois >, selection + clear
 │   │   ├── calendar/                           ← Vue calendrier
 │   │   │   ├── CalendarMonth.tsx               ← Grille 6×7

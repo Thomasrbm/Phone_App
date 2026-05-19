@@ -1,25 +1,32 @@
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import HorizonSummaryCard from '@/components/objectives/HorizonSummaryCard';
+import HorizonTile from '@/components/objectives/HorizonTile';
+import ObjectiveCreateModal from '@/components/objectives/ObjectiveCreateModal';
+import ObjectivesFab from '@/components/objectives/ObjectivesFab';
+import ObjectivesStatsHeader from '@/components/objectives/ObjectivesStatsHeader';
 import ObjectivesTimelineArrow from '@/components/objectives/ObjectivesTimelineArrow';
 import ObjectivesYearBrowserModal from '@/components/objectives/ObjectivesYearBrowserModal';
 import UpcomingDeadlinesList from '@/components/objectives/UpcomingDeadlinesList';
 import type { ObjectiveHorizon } from '@/db/objectives';
+import { createObjective } from '@/data/mutations';
 import { EMPTY_OBJECTIVES, objectivesView } from '@/data/views';
 import { useTheme } from '@/lib/themeContext';
 
-// Overview screen. Read-only — every mutation lives behind the per-
-// horizon sub-pages or the per-objective edit screen.
+// Objectives overview. Stacked top-to-bottom for vertical scanning:
 //
-// Layout, top to bottom:
-//   1. Upcoming deadlines (next 5 across all horizons, sorted by date)
-//   2. Long-term timeline (vision 30 years, red dots only)
-//   3. Three horizon summary cards (tappable → drill-in)
+//   • StatsHeader      — "where am I" at a glance (done / overdue /
+//                          this week). Single biggest infomration tile.
+//   • UpcomingList     — "what's coming" — top 3 actionable deadlines.
+//   • TimelineArrow    — "vision" — 30-year strip with red dots for
+//                          long-term deadlines. Tap dot OR strip
+//                          opens the year browser modal.
+//   • 3 HorizonTiles   — drill-down access in a single row instead of
+//                          the previous 3 stacked cards.
 //
-// Tap timeline → opens a full-screen year browser modal. Closing the
-// modal drops the year detail completely (no lingering inline view).
+// + a floating FAB to add an objective from anywhere (horizon picker
+// lives inside the create modal).
 const HORIZON_PRIORITY: Record<ObjectiveHorizon, number> = {
   long: 0,
   medium: 1,
@@ -31,15 +38,11 @@ export default function ObjectivesScreen() {
   const router = useRouter();
   const objectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
   const [browserOpen, setBrowserOpen] = useState(false);
-  // Year to land on when the browser opens. Drives initialYear of the
-  // modal; the modal copies it into local state and lets the user nav
-  // from there.
   const [browserYear, setBrowserYear] = useState<number>(() =>
     new Date().getFullYear()
   );
+  const [createOpen, setCreateOpen] = useState(false);
 
-  // Map dayKey → most-urgent horizon, fed to the year view inside
-  // the browser.
   const deadlinesByDay = useMemo(() => {
     const out = new Map<string, ObjectiveHorizon>();
     const consider = (list: typeof objectives.long) => {
@@ -60,7 +63,6 @@ export default function ObjectivesScreen() {
     return out;
   }, [objectives]);
 
-  // Years with at least one *long-term* deadline (timeline scope).
   const longDeadlineYears = useMemo(() => {
     const out = new Set<number>();
     for (const o of objectives.long) {
@@ -70,7 +72,6 @@ export default function ObjectivesScreen() {
     return out;
   }, [objectives.long]);
 
-  // Per-year deadline count (all horizons) for the picker meta.
   const deadlineCountByYear = useMemo(() => {
     const out = new Map<number, number>();
     for (const [dayKey] of deadlinesByDay) {
@@ -80,14 +81,11 @@ export default function ObjectivesScreen() {
     return out;
   }, [deadlinesByDay]);
 
-  // Flat list of every non-done objective, fed to the upcoming list.
   const allObjectives = useMemo(
     () => [...objectives.long, ...objectives.medium, ...objectives.short],
     [objectives]
   );
 
-  // Tap a deadline cell inside the year view → open the (first)
-  // matching objective. Closes the browser as a side effect.
   const handleSelectDay = useCallback(
     (dayKey: string) => {
       for (const h of ['long', 'medium', 'short'] as ObjectiveHorizon[]) {
@@ -110,12 +108,27 @@ export default function ObjectivesScreen() {
     [router]
   );
 
-  const openBrowser = useCallback(() => {
-    // Land on the current year by default — the user can navigate
-    // from there.
-    setBrowserYear(new Date().getFullYear());
+  // Default landing year for the browser. If the user has long-term
+  // deadlines, jump to the earliest one (most actionable); otherwise
+  // current year.
+  const openBrowserAtDefaultYear = useCallback(() => {
+    const earliest = [...longDeadlineYears].sort()[0];
+    setBrowserYear(earliest ?? new Date().getFullYear());
     setBrowserOpen(true);
-  }, []);
+  }, [longDeadlineYears]);
+
+  const handleCreate = useCallback(
+    (params: {
+      title: string;
+      description: string;
+      deadline: string;
+      horizon: ObjectiveHorizon;
+    }) => {
+      createObjective(params);
+      setCreateOpen(false);
+    },
+    []
+  );
 
   const styles = useMemo(
     () =>
@@ -125,13 +138,13 @@ export default function ObjectivesScreen() {
           backgroundColor: theme.colors.background,
         },
         scroll: {
-          paddingBottom: theme.spacing.xl * 3,
+          paddingBottom: 96, // breathing room above the FAB
         },
-        intro: {
-          paddingHorizontal: theme.spacing.lg,
-          paddingTop: theme.spacing.lg,
-          fontSize: theme.font.sm,
-          color: theme.colors.textMuted,
+        tilesRow: {
+          flexDirection: 'row',
+          gap: theme.spacing.sm,
+          marginHorizontal: theme.spacing.lg,
+          marginTop: theme.spacing.lg,
         },
       }),
     [theme]
@@ -148,36 +161,38 @@ export default function ObjectivesScreen() {
         }}
       />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.intro}>
-          Aperçu de tes objectifs. Appuie sur une carte pour gérer.
-        </Text>
+        <ObjectivesStatsHeader objectives={allObjectives} />
         <UpcomingDeadlinesList
           objectives={allObjectives}
+          limit={3}
           onOpenObjective={handleOpenObjective}
         />
         <ObjectivesTimelineArrow
           longDeadlineYears={longDeadlineYears}
-          onTap={openBrowser}
+          onTap={openBrowserAtDefaultYear}
         />
-        <HorizonSummaryCard
-          title="Long terme"
-          accent={theme.colors.objectiveLong}
-          objectives={objectives.long}
-          onPress={() => router.push('/objectives/long')}
-        />
-        <HorizonSummaryCard
-          title="Moyen terme"
-          accent={theme.colors.objectiveMedium}
-          objectives={objectives.medium}
-          onPress={() => router.push('/objectives/medium')}
-        />
-        <HorizonSummaryCard
-          title="Court terme"
-          accent={theme.colors.objectiveShort}
-          objectives={objectives.short}
-          onPress={() => router.push('/objectives/short')}
-        />
+        <View style={styles.tilesRow}>
+          <HorizonTile
+            title="Long"
+            accent={theme.colors.objectiveLong}
+            objectives={objectives.long}
+            onPress={() => router.push('/objectives/long')}
+          />
+          <HorizonTile
+            title="Moyen"
+            accent={theme.colors.objectiveMedium}
+            objectives={objectives.medium}
+            onPress={() => router.push('/objectives/medium')}
+          />
+          <HorizonTile
+            title="Court"
+            accent={theme.colors.objectiveShort}
+            objectives={objectives.short}
+            onPress={() => router.push('/objectives/short')}
+          />
+        </View>
       </ScrollView>
+      <ObjectivesFab onPress={() => setCreateOpen(true)} />
       <ObjectivesYearBrowserModal
         visible={browserOpen}
         initialYear={browserYear}
@@ -185,6 +200,11 @@ export default function ObjectivesScreen() {
         deadlineCountByYear={deadlineCountByYear}
         onClose={() => setBrowserOpen(false)}
         onSelectDay={handleSelectDay}
+      />
+      <ObjectiveCreateModal
+        visible={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreate={handleCreate}
       />
     </SafeAreaView>
   );

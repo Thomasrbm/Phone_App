@@ -22,10 +22,15 @@ const HORIZON_LABELS: Record<ObjectiveHorizon, string> = {
   short: 'court terme',
 };
 
+const HORIZON_ORDER: ObjectiveHorizon[] = ['long', 'medium', 'short'];
+
 type Props = {
   visible: boolean;
-  horizon: ObjectiveHorizon;
-  accent: string;
+  // When omitted, the modal shows a horizon picker so the caller
+  // (e.g. the overview FAB) doesn't have to pre-commit a horizon.
+  // When provided, the horizon is fixed (used by HorizonScreen — the
+  // user is already on a specific horizon page).
+  horizon?: ObjectiveHorizon;
   onClose: () => void;
   // All three fields are non-empty by construction (button disabled
   // otherwise). description is trimmed, deadline is 'YYYY-MM-DD'.
@@ -33,6 +38,7 @@ type Props = {
     title: string;
     description: string;
     deadline: string;
+    horizon: ObjectiveHorizon;
   }) => void;
 };
 
@@ -42,8 +48,7 @@ type Props = {
 // chosen via the dedicated DeadlinePickerModal mounted on top.
 export default function ObjectiveCreateModal({
   visible,
-  horizon,
-  accent,
+  horizon: fixedHorizon,
   onClose,
   onCreate,
 }: Props) {
@@ -52,6 +57,18 @@ export default function ObjectiveCreateModal({
   const [description, setDescription] = useState('');
   const [deadline, setDeadline] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Active horizon. Driven by prop when caller fixed it, else local
+  // state with a sane default. Reset on re-open.
+  const [horizonState, setHorizonState] = useState<ObjectiveHorizon>(
+    fixedHorizon ?? 'long'
+  );
+  const horizon = fixedHorizon ?? horizonState;
+  const accent =
+    horizon === 'long'
+      ? theme.colors.objectiveLong
+      : horizon === 'medium'
+        ? theme.colors.objectiveMedium
+        : theme.colors.objectiveShort;
   // Track keyboard height ourselves — Android Modal lives in its own
   // window where windowSoftInputMode doesn't lift the content, and
   // KeyboardAvoidingView behaves inconsistently inside Modal. We
@@ -67,8 +84,9 @@ export default function ObjectiveCreateModal({
       setDescription('');
       setDeadline(null);
       setPickerOpen(false);
+      setHorizonState(fixedHorizon ?? 'long');
     }
-  }, [visible]);
+  }, [visible, fixedHorizon]);
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -94,6 +112,7 @@ export default function ObjectiveCreateModal({
       title: title.trim(),
       description: description.trim(),
       deadline: deadline as string,
+      horizon,
     });
   };
 
@@ -203,6 +222,26 @@ export default function ObjectiveCreateModal({
         btnTextPrimary: {
           color: theme.colors.textInverse,
         },
+        horizonRow: {
+          flexDirection: 'row',
+          gap: theme.spacing.sm,
+          marginTop: 4,
+        },
+        horizonChip: {
+          paddingHorizontal: theme.spacing.md,
+          paddingVertical: theme.spacing.sm,
+          borderRadius: theme.radius.pill,
+          backgroundColor: theme.colors.surfaceAlt,
+        },
+        horizonChipText: {
+          fontSize: theme.font.sm,
+          color: theme.colors.textMuted,
+          fontWeight: '600',
+          textTransform: 'capitalize',
+        },
+        horizonChipTextActive: {
+          color: theme.colors.textInverse,
+        },
       }),
     [theme, accent, deadline]
   );
@@ -226,7 +265,47 @@ export default function ObjectiveCreateModal({
           style={{ marginBottom: kbHeight }}
         >
           <View style={styles.sheet}>
-            <Text style={styles.title}>Nouvel objectif {HORIZON_LABELS[horizon]}</Text>
+            <Text style={styles.title}>
+              Nouvel objectif{fixedHorizon ? ` ${HORIZON_LABELS[horizon]}` : ''}
+            </Text>
+
+              {!fixedHorizon ? (
+                <>
+                  <Text style={styles.label}>
+                    Horizon <Text style={styles.labelRequired}>*</Text>
+                  </Text>
+                  <View style={styles.horizonRow}>
+                    {HORIZON_ORDER.map((h) => {
+                      const active = h === horizon;
+                      const chipColor =
+                        h === 'long'
+                          ? theme.colors.objectiveLong
+                          : h === 'medium'
+                            ? theme.colors.objectiveMedium
+                            : theme.colors.objectiveShort;
+                      return (
+                        <TouchableOpacity
+                          key={h}
+                          onPress={() => setHorizonState(h)}
+                          style={[
+                            styles.horizonChip,
+                            active && { backgroundColor: chipColor },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.horizonChipText,
+                              active && styles.horizonChipTextActive,
+                            ]}
+                          >
+                            {HORIZON_LABELS[h]}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
 
               <Text style={styles.label}>
                 Titre <Text style={styles.labelRequired}>*</Text>

@@ -14,6 +14,10 @@ type Props = {
   selectedCount: number;
   searchOpen: boolean;
   deletedCount: number;
+  // Number of urgent objective deadlines (overdue + due in next 7
+  // days, not done). Shown as a badge on the objectives flag — same
+  // pattern as the trash badge. Hidden when zero.
+  urgentObjectivesCount: number;
   onCancelSelect: () => void;
   onToggleSearch: () => void;
   onOpenObjectives: () => void;
@@ -31,6 +35,7 @@ export default function DayHeader({
   selectedCount,
   searchOpen,
   deletedCount,
+  urgentObjectivesCount,
   onCancelSelect,
   onToggleSearch,
   onOpenObjectives,
@@ -162,15 +167,23 @@ export default function DayHeader({
             style={styles.iconBtn}
             hitSlop={8}
           >
-            {/* `target` = arrow-in-target picto; red accent = horizon
-                "long terme" couleur. Toujours rouge même si dark mode
-                car c'est le signal visuel principal de l'entrée
-                Objectifs. */}
+            {/* `flag` reads universally as "goal / objectif" — the
+                previous `target` was confused with crosshair / aim.
+                Always rendered in objectiveLong red because this
+                button is the primary signal for the Objectifs
+                section. The badge mirrors the trash badge pattern:
+                small red pill with the count of urgent deadlines
+                (overdue + due within 7 days). */}
             <Feather
-              name="target"
+              name="flag"
               size={22}
               color={theme.colors.objectiveLong}
             />
+            {urgentObjectivesCount > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{urgentObjectivesCount}</Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
         </View>
         <View style={styles.centerSlot} />

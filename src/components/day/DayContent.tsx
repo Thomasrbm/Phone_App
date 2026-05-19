@@ -37,7 +37,9 @@ import {
   completionsByDayView,
   deletedTasksByDayView,
   EMPTY_COMPLETIONS,
+  EMPTY_OBJECTIVES,
   EMPTY_TASKS,
+  objectivesView,
   tasksByDayView,
 } from '@/data/views';
 import { toDayKey, todayKey } from '@/lib/date';
@@ -105,6 +107,26 @@ const DayContent = memo(function DayContent({
   const deletedTasks = deletedTasksByDayView.useView(date, EMPTY_TASKS);
   const deletedCount = deletedTasks.length;
   const completedIds = completionsByDayView.useView(date, EMPTY_COMPLETIONS);
+  // All objectives, so we can show a urgency badge on the Objectifs
+  // flag. "Urgent" = non-done with deadline overdue or within next 7
+  // days. Cheap to compute (typical < 50 objectives).
+  const allObjectives = objectivesView.useView('_', EMPTY_OBJECTIVES);
+  const urgentObjectivesCount = useMemo(() => {
+    const t = new Date(todayKey() + 'T00:00:00').getTime();
+    let n = 0;
+    const consider = (list: typeof allObjectives.long) => {
+      for (const o of list) {
+        if (o.done || !o.deadline) continue;
+        const d = new Date(o.deadline + 'T00:00:00').getTime();
+        const diffDays = Math.round((d - t) / 86400000);
+        if (diffDays <= 7) n++;
+      }
+    };
+    consider(allObjectives.long);
+    consider(allObjectives.medium);
+    consider(allObjectives.short);
+    return n;
+  }, [allObjectives]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -514,6 +536,7 @@ const DayContent = memo(function DayContent({
             selectedCount={selectedIds.size}
             searchOpen={searchOpen}
             deletedCount={deletedCount}
+            urgentObjectivesCount={urgentObjectivesCount}
             onCancelSelect={exitSelectMode}
             onToggleSearch={() => setSearchOpen((s) => !s)}
             onOpenObjectives={() => router.push('/objectives')}
