@@ -1,15 +1,13 @@
-import { Feather } from '@expo/vector-icons';
 import { useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '@/lib/themeContext';
 
 type Props = {
+  day: number;
   onPress: () => void;
 };
 
-// Symmetric counterpart to TodayButton — same 40x44 shape so the two
-// screens read as siblings. Tapping it opens the calendar view.
-export default function CalendarButton({ onPress }: Props) {
+export default function TodayButton({ day, onPress }: Props) {
   const { theme } = useTheme();
   const styles = useMemo(
     () =>
@@ -30,12 +28,17 @@ export default function CalendarButton({ onPress }: Props) {
         },
         topBar: {
           height: 8,
-          backgroundColor: theme.colors.accent,
+          backgroundColor: theme.colors.today,
         },
         body: {
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
+        },
+        dayText: {
+          color: theme.colors.today,
+          fontSize: theme.font.lg,
+          fontWeight: '800',
         },
       }),
     [theme]
@@ -45,7 +48,7 @@ export default function CalendarButton({ onPress }: Props) {
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={styles.btn}>
       <View style={styles.topBar} />
       <View style={styles.body}>
-        <Feather name="calendar" size={18} color={theme.colors.accent} />
+        <Text style={styles.dayText}>{day}</Text>
       </View>
     </TouchableOpacity>
   );

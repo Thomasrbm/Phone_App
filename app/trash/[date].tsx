@@ -1,48 +1,28 @@
 import { Feather } from '@expo/vector-icons';
-import {
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useRouter,
-} from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DragHandle from '@/components/DragHandle';
-import TaskItem from '@/components/TaskItem';
-import {
-  listDeletedTasksByDay,
-  restoreTask,
-  type Task,
-} from '@/db/tasks';
+import DragHandle from '@/components/shared/DragHandle';
+import TaskItem from '@/components/shared/TaskItem';
+import { restoreTask } from '@/data/mutations';
+import { deletedTasksByDayView, EMPTY_TASKS } from '@/data/views';
 import { useTheme } from '@/lib/themeContext';
 
 export default function TrashScreen() {
   const { theme } = useTheme();
   const { date } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const tasks = deletedTasksByDayView.useView(date, EMPTY_TASKS);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const selectMode = selectedIds.size > 0;
 
-  const reload = useCallback(async () => {
-    const data = await listDeletedTasksByDay(date);
-    setTasks(data);
-  }, [date]);
-
-  useFocusEffect(
-    useCallback(() => {
-      reload();
-    }, [reload])
-  );
-
-  const handleRestore = async (id: string) => {
-    await restoreTask(id);
-    reload();
+  const handleRestore = (id: string) => {
+    restoreTask(id, date);
   };
 
   const handlePress = (id: string) => {
@@ -71,11 +51,10 @@ export default function TrashScreen() {
 
   const restoreSelected = async () => {
     const ids = Array.from(selectedIds);
-    for (const id of ids) {
-      await restoreTask(id);
-    }
     setSelectedIds(new Set());
-    reload();
+    for (const id of ids) {
+      await restoreTask(id, date);
+    }
   };
 
   const title = format(parseISO(date), 'EEEE d MMMM', { locale: fr });
@@ -194,16 +173,19 @@ export default function TrashScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
+            {/* POLISH:empty-trash */}
             <Feather
               name="trash-2"
-              size={40}
+              size={44}
               color={theme.colors.textSubtle}
+              style={{ opacity: 0.45 }}
             />
-            <Text style={styles.emptyText}>Aucune tâche supprimée.</Text>
+            <Text style={styles.emptyText}>Corbeille vide</Text>
             <Text style={styles.emptyHint}>
-              Les tâches que tu supprimes apparaîtront ici, swipe vers la
-              gauche pour restaurer.
+              Les tâches supprimées atterrissent ici{'\n'}— swipe vers la
+              gauche pour restaurer
             </Text>
+            {/* /POLISH:empty-trash */}
           </View>
         }
       />

@@ -1,5 +1,6 @@
 import { getDatabase } from './index';
 import { uuidv4 } from '@/lib/uuid';
+import { enumerateDays, parseDayKey, toDayKey } from '@/lib/date';
 
 export type RoutineGroup = {
   id: string;
@@ -319,12 +320,12 @@ export async function getRoutineStats(
   const set = new Set(days);
 
   let streak = 0;
-  const cursor = new Date(today + 'T00:00:00');
+  const cursor = parseDayKey(today);
   if (!set.has(today)) {
     cursor.setDate(cursor.getDate() - 1);
   }
   while (true) {
-    const key = toLocalKey(cursor);
+    const key = toDayKey(cursor);
     if (set.has(key)) {
       streak += 1;
       cursor.setDate(cursor.getDate() - 1);
@@ -333,9 +334,9 @@ export async function getRoutineStats(
     }
   }
 
-  const start = new Date(today + 'T00:00:00');
+  const start = parseDayKey(today);
   start.setDate(start.getDate() - 29);
-  const startKey = toLocalKey(start);
+  const startKey = toDayKey(start);
   let completed30d = 0;
   for (const d of days) {
     if (d >= startKey && d <= today) completed30d += 1;
@@ -394,20 +395,3 @@ export async function getRoutineCountsInRange(
   return result;
 }
 
-function enumerateDays(startDay: string, endDay: string): string[] {
-  const out: string[] = [];
-  const cursor = new Date(startDay + 'T00:00:00');
-  const end = new Date(endDay + 'T00:00:00');
-  while (cursor <= end) {
-    out.push(toLocalKey(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return out;
-}
-
-function toLocalKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}

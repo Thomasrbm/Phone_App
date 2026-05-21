@@ -11,15 +11,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import IconPicker from '@/components/IconPicker';
+import IconPicker from '@/components/shared/IconPicker';
 import {
-  archiveRoutine,
   getRoutineById,
   listGroups,
-  updateRoutine,
   type Routine,
   type RoutineGroup,
 } from '@/db/routines';
+import { archiveRoutine, updateRoutine } from '@/data/mutations';
 import type { FeatherName } from '@/lib/icons';
 import { useTheme } from '@/lib/themeContext';
 

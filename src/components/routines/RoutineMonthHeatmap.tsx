@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/lib/themeContext';
+import { toDayKey } from '@/lib/date';
 
 type Props = {
   year: number;
@@ -11,10 +12,6 @@ type Props = {
 };
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
-}
 
 // Calendar grid for one month. Mon-Sun rows. Completed days are filled
 // with `color`, others show an empty outline. Today gets an inner ring.
@@ -43,7 +40,7 @@ export default function RoutineMonthHeatmap({
       } else {
         list.push({
           day: dayIdx,
-          key: `${year}-${pad(month + 1)}-${pad(dayIdx)}`,
+          key: toDayKey(new Date(year, month, dayIdx)),
         });
       }
     }
@@ -80,7 +77,6 @@ export default function RoutineMonthHeatmap({
           flex: 1,
           borderRadius: 4,
           borderWidth: 1,
-          borderColor: theme.colors.border,
           backgroundColor: 'transparent',
         },
         cellDone: {
@@ -110,14 +106,26 @@ export default function RoutineMonthHeatmap({
           }
           const done = completedDays.has(c.key);
           const isToday = c.key === todayKey;
+          // Empty cells tint their border with the routine color at low
+          // alpha so they read as "spots reserved for this routine"
+          // instead of disappearing into the background.
+          const emptyBorder =
+            color.length === 7 && color.startsWith('#')
+              ? `${color}66`
+              : theme.colors.textSubtle;
           return (
             <View key={i} style={styles.cell}>
               <View
                 style={[
                   styles.cellInner,
+                  { borderColor: emptyBorder },
                   done && styles.cellDone,
                   done && { backgroundColor: color },
-                  isToday && styles.cellToday,
+                  // Today ring only shown on uncompleted days — once
+                  // the routine is done the color fill already stands
+                  // out, and the orange ring on top of (e.g.) a green
+                  // fill is visually noisy.
+                  !done && isToday && styles.cellToday,
                 ]}
               />
             </View>

@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
-import { useMemo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import {
   RectButton,
@@ -25,7 +25,7 @@ type Props = {
   selected?: boolean;
 };
 
-export default function TaskItem({
+function TaskItemImpl({
   task,
   onToggle,
   onPress,
@@ -60,8 +60,13 @@ export default function TaskItem({
           borderBottomColor: theme.colors.border,
           backgroundColor: theme.colors.surface,
         },
-        rowDone: {
-          opacity: 0.55,
+        // No row-wide opacity: it lets the swipe-action background
+        // bleed through and makes done rows look transparent during
+        // swipe. The done state is conveyed by titleDone (line-through
+        // + muted color) and subtitleDone below.
+        rowDone: {},
+        subtitleDone: {
+          color: theme.colors.textSubtle,
         },
         rowSelected: {
           backgroundColor: theme.colors.selectionBg,
@@ -245,7 +250,10 @@ export default function TaskItem({
           {task.title}
         </Text>
         {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text
+            style={[styles.subtitle, task.done && styles.subtitleDone]}
+            numberOfLines={1}
+          >
             {subtitle}
           </Text>
         ) : null}
@@ -267,3 +275,9 @@ export default function TaskItem({
     </Swipeable>
   );
 }
+
+// memo: each task tick re-renders the parent FlatList. Without memo,
+// every TaskItem (including 20+ off-screen rows in the virtualized
+// window) re-renders, which is the bulk of the perceived check latency.
+const TaskItem = memo(TaskItemImpl);
+export default TaskItem;

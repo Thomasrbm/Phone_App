@@ -17,6 +17,12 @@ export type ThemeColors = {
   todaySoft: string;
   routine: string;
   routineSoft: string;
+  // Objectives are categorised by horizon and rendered with distinct
+  // accent colours per horizon. Long = red (urgent / important framing),
+  // medium = orange (transitional), short = light blue (calm / soon).
+  objectiveLong: string;
+  objectiveMedium: string;
+  objectiveShort: string;
   selectionBg: string;
   swipeBlendBase: string;
 };
@@ -54,6 +60,9 @@ export const lightTheme: Theme = {
     todaySoft: '#fff1e6',
     routine: '#0d8a3f',
     routineSoft: '#e3f1e7',
+    objectiveLong: '#dc2626',
+    objectiveMedium: '#ea580c',
+    objectiveShort: '#3b82f6',
     selectionBg: '#dde9f1',
     swipeBlendBase: '#ffffff',
   },
@@ -83,6 +92,9 @@ export const darkTheme: Theme = {
     todaySoft: '#3a2218',
     routine: '#4ade80',
     routineSoft: '#1a3a24',
+    objectiveLong: '#f87171',
+    objectiveMedium: '#fb923c',
+    objectiveShort: '#60a5fa',
     selectionBg: '#2a3a4a',
     swipeBlendBase: '#202020',
   },

@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import {
   addMonths,
   addWeeks,
@@ -25,20 +25,33 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CalendarMonth from '@/components/CalendarMonth';
-import CalendarWeek from '@/components/CalendarWeek';
-import DragHandle from '@/components/DragHandle';
-import TodayButton from '@/components/TodayButton';
-import ViewMenu, { type CalendarView } from '@/components/ViewMenu';
-import { getTaskCountsInRange, type DayCounts } from '@/db/tasks';
-import { toDayKey } from '@/lib/date';
+import CalendarMonth from '@/components/calendar/CalendarMonth';
+import CalendarWeek from '@/components/calendar/CalendarWeek';
+import DragHandle from '@/components/shared/DragHandle';
+import TodayButton from '@/components/calendar/TodayButton';
+import ViewMenu, { type CalendarView } from '@/components/calendar/ViewMenu';
+import { EMPTY_COUNTS, taskCountsInRangeView } from '@/data/views';
+import { toDayKey, todayKey } from '@/lib/date';
 import { useTheme } from '@/lib/themeContext';
 
 const PAGES_BEFORE = 12;
 const PAGES_AFTER = 12;
 const WEEKDAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
 
-export default function CalendarScreen() {
+type Props = {
+  // Hub mode: when these are provided, the component skips Stack.Screen
+  // config and routes day taps / encoche through callbacks instead of
+  // router.push. Used by the always-mounted hub at /.
+  hubMode?: boolean;
+  onSelectDay?: (dayKey: string) => void;
+  onSwipeUp?: () => void;
+};
+
+export default function CalendarScreen({
+  hubMode,
+  onSelectDay,
+  onSwipeUp,
+}: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -72,8 +85,6 @@ export default function CalendarScreen() {
   const [visibleWeek, setVisibleWeek] = useState<Date>(
     startOfWeek(today, { weekStartsOn: 1 })
   );
-  const [counts, setCounts] = useState<Record<string, DayCounts>>({});
-
   const range = useMemo(() => {
     const start = startOfWeek(startOfMonth(months[0]), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(months[months.length - 1]), {
@@ -82,20 +93,12 @@ export default function CalendarScreen() {
     return { start: toDayKey(start), end: toDayKey(end) };
   }, [months]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      getTaskCountsInRange(range.start, range.end).then((data) => {
-        if (!cancelled) setCounts(data);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [range])
-  );
+  const counts = taskCountsInRangeView.useView(range, EMPTY_COUNTS);
 
   const handleDayPress = (date: Date) => {
-    router.push(`/calendar/${toDayKey(date)}`);
+    const key = toDayKey(date);
+    if (onSelectDay) onSelectDay(key);
+    else router.push(`/calendar/${key}`);
   };
 
   const handleMonthScrollEnd = (
@@ -115,16 +118,15 @@ export default function CalendarScreen() {
   };
 
   const goToToday = () => {
+    // scrollToIndex with animated:true silently fails when the target is
+    // outside the currently rendered window (windowSize: 3). scrollToOffset
+    // doesn't have that constraint — pages are uniform width thanks to
+    // getItemLayout, so the offset math is exact regardless of windowing.
+    const offset = initialIndex * width;
     if (view === 'month') {
-      monthListRef.current?.scrollToIndex({
-        index: initialIndex,
-        animated: true,
-      });
+      monthListRef.current?.scrollToOffset({ offset, animated: true });
     } else {
-      weekListRef.current?.scrollToIndex({
-        index: initialIndex,
-        animated: true,
-      });
+      weekListRef.current?.scrollToOffset({ offset, animated: true });
     }
   };
 
@@ -256,11 +258,13 @@ export default function CalendarScreen() {
   const closeToHub = useCallback(() => {
     // Always land on TODAY's real date — recompute at trigger time so
     // we don't pin to a stale `today` captured at mount.
-    router.replace(`/calendar/${toDayKey(new Date())}`);
-  }, [router]);
+    if (onSwipeUp) onSwipeUp();
+    else router.replace(`/calendar/${todayKey()}`);
+  }, [router, onSwipeUp]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {!hubMode ? <Stack.Screen options={{ animation: 'none' }} /> : null}
       <View style={styles.topRow}>
         <View style={styles.leftActions}>
           <TouchableOpacity
@@ -273,11 +277,7 @@ export default function CalendarScreen() {
         </View>
 
         <View style={styles.todayCenter}>
-          <TodayButton
-            day={today.getDate()}
-            onPress={goToToday}
-            onLongPress={closeToHub}
-          />
+          <TodayButton day={today.getDate()} onPress={goToToday} />
         </View>
 
         <View style={styles.rightActions}>

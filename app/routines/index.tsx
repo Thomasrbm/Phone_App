@@ -1,58 +1,38 @@
 import { Feather } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
   Keyboard,
-  Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DragHandle from '@/components/DragHandle';
-import RoutineMonthHeatmap from '@/components/RoutineMonthHeatmap';
-import RoutineWeekStrip from '@/components/RoutineWeekStrip';
+import DragHandle from '@/components/shared/DragHandle';
+import RoutinesModalSheet, {
+  type RoutinesModalState,
+} from '@/components/routines/RoutinesModalSheet';
+import RoutineStatsCard from '@/components/routines/RoutineStatsCard';
+import type { Routine, RoutineGroup } from '@/db/routines';
 import {
   archiveRoutine,
   createGroup,
   createRoutine,
   deleteGroup,
-  getCompletionDaysForRoutine,
-  getRoutineStats,
-  listGroups,
-  listRoutinesByGroup,
   updateGroup,
-  type Routine,
-  type RoutineGroup,
-  type RoutineStats,
-} from '@/db/routines';
-import { getSetting, setSetting } from '@/db/settings';
-import { TASK_COLORS } from '@/lib/colors';
+} from '@/data/mutations';
+import { EMPTY_STRUCTURE, routineStructureView } from '@/data/views';
+import { useActiveGroupId } from '@/hooks/useActiveGroupId';
 import { toDayKey } from '@/lib/date';
-import type { FeatherName } from '@/lib/icons';
 import { useTheme } from '@/lib/themeContext';
-
-const ACTIVE_GROUP_KEY = 'routines_active_group';
-
-type ModalState =
-  | { type: 'create-group'; name: string; color: string | null }
-  | {
-      type: 'rename-group';
-      id: string;
-      name: string;
-      color: string | null;
-    }
-  | { type: 'create-routine'; name: string }
-  | null;
 
 function monthBounds(d: Date): { start: string; end: string } {
   const y = d.getFullYear();
@@ -65,7 +45,17 @@ function monthBounds(d: Date): { start: string; end: string } {
   return { start: toDayKey(first), end: toDayKey(last) };
 }
 
-export default function RoutinesTrackerScreen() {
+type Props = {
+  // Hub mode: when true, skip Stack.Screen and route the encoche swipe
+  // through onSwipeUp callback instead of router.replace.
+  hubMode?: boolean;
+  onSwipeUp?: () => void;
+};
+
+export default function RoutinesTrackerScreen({
+  hubMode,
+  onSwipeUp,
+}: Props = {}) {
   const { theme } = useTheme();
   const router = useRouter();
   const today = useMemo(() => new Date(), []);
@@ -75,16 +65,12 @@ export default function RoutinesTrackerScreen() {
     [today]
   );
 
-  const [groups, setGroups] = useState<RoutineGroup[]>([]);
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [routinesByGroup, setRoutinesByGroup] = useState<
-    Record<string, Routine[]>
-  >({});
-  const [stats, setStats] = useState<Record<string, RoutineStats>>({});
-  const [completions, setCompletions] = useState<Record<string, Set<string>>>(
-    {}
-  );
-  const [modal, setModal] = useState<ModalState>(null);
+  const structure = routineStructureView.useView('_', EMPTY_STRUCTURE);
+  const { groups, routinesByGroup } = structure;
+
+  const [activeGroupId, selectActiveGroup] = useActiveGroupId(groups);
+
+  const [modal, setModal] = useState<RoutinesModalState>(null);
   const [kbHeight, setKbHeight] = useState(0);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
     new Set()
@@ -119,82 +105,41 @@ export default function RoutinesTrackerScreen() {
     };
   }, []);
 
-  const reload = useCallback(async () => {
-    const [allGroups, storedActive] = await Promise.all([
-      listGroups(),
-      getSetting(ACTIVE_GROUP_KEY),
-    ]);
-    setGroups(allGroups);
-    const fallback = allGroups[0]?.id ?? null;
-    const active =
-      storedActive && allGroups.some((g) => g.id === storedActive)
-        ? storedActive
-        : fallback;
-    setActiveGroupId(active);
-
-    // Load all groups' routines + their stats + completions in parallel.
-    // Keeps the horizontal pager responsive when swiping between groups.
-    const allLists = await Promise.all(
-      allGroups.map((g) => listRoutinesByGroup(g.id))
-    );
-    const routinesMap: Record<string, Routine[]> = {};
-    allGroups.forEach((g, i) => {
-      routinesMap[g.id] = allLists[i];
-    });
-    setRoutinesByGroup(routinesMap);
-    const flat = allLists.flat();
-    const [statsList, completionsList] = await Promise.all([
-      Promise.all(flat.map((r) => getRoutineStats(r.id, todayKey))),
-      Promise.all(
-        flat.map((r) =>
-          getCompletionDaysForRoutine(r.id, monthStart, monthEnd)
-        )
-      ),
-    ]);
-    const statsMap: Record<string, RoutineStats> = {};
-    const compMap: Record<string, Set<string>> = {};
-    flat.forEach((r, i) => {
-      statsMap[r.id] = statsList[i];
-      compMap[r.id] = completionsList[i];
-    });
-    setStats(statsMap);
-    setCompletions(compMap);
-  }, [todayKey, monthStart, monthEnd]);
-
   const activeIndex = useMemo(() => {
     if (!activeGroupId) return 0;
     const i = groups.findIndex((g) => g.id === activeGroupId);
     return i >= 0 ? i : 0;
   }, [groups, activeGroupId]);
 
+  // Tapping a chip drives the scroll itself (animated). Without this
+  // guard, selectActiveGroup would also re-fire the useEffect below and
+  // snap the pager (animated:false) before the animation could run —
+  // visible as a "jump" right after the tap.
+  const suppressNextSnap = useRef(false);
+
   useEffect(() => {
+    if (suppressNextSnap.current) {
+      suppressNextSnap.current = false;
+      return;
+    }
     pagerRef.current?.scrollToOffset({
       offset: activeIndex * width,
       animated: false,
     });
   }, [activeIndex, width, groups.length]);
 
-  useFocusEffect(
-    useCallback(() => {
-      reload();
-    }, [reload])
-  );
-
   const handleSelectGroup = useCallback(
-    async (groupId: string, scroll = true) => {
-      setActiveGroupId(groupId);
-      await setSetting(ACTIVE_GROUP_KEY, groupId);
-      if (scroll) {
-        const idx = groups.findIndex((g) => g.id === groupId);
-        if (idx >= 0) {
-          pagerRef.current?.scrollToOffset({
-            offset: idx * width,
-            animated: true,
-          });
-        }
-      }
+    (groupId: string) => {
+      const idx = groups.findIndex((g) => g.id === groupId);
+      if (idx < 0) return;
+      suppressNextSnap.current = true;
+      selectActiveGroup(groupId);
+      pagerRef.current?.scrollToOffset({
+        offset: idx * width,
+        animated: true,
+      });
     },
-    [groups, width]
+    [groups, width, selectActiveGroup]
   );
 
   const handlePagerEnd = useCallback(
@@ -202,11 +147,11 @@ export default function RoutinesTrackerScreen() {
       const idx = Math.round(e.nativeEvent.contentOffset.x / width);
       const g = groups[idx];
       if (g && g.id !== activeGroupId) {
-        setActiveGroupId(g.id);
-        setSetting(ACTIVE_GROUP_KEY, g.id);
+        suppressNextSnap.current = true;
+        selectActiveGroup(g.id);
       }
     },
-    [groups, width, activeGroupId]
+    [groups, width, activeGroupId, selectActiveGroup]
   );
 
   const handleGroupLongPress = useCallback(
@@ -237,9 +182,7 @@ export default function RoutinesTrackerScreen() {
                     ? 'Tu dois garder au moins un groupe.'
                     : `Ce groupe contient ${res.routineCount} routine${res.routineCount > 1 ? 's' : ''}. Déplace ou archive-les d'abord.`
                 );
-                return;
               }
-              reload();
             },
           },
           { text: 'Annuler', style: 'cancel' },
@@ -247,63 +190,71 @@ export default function RoutinesTrackerScreen() {
         { cancelable: true }
       );
     },
-    [reload]
+    []
   );
 
-  const handleArchiveRoutine = useCallback(
-    (routine: Routine) => {
-      Alert.alert(
-        'Archiver cette routine ?',
-        `« ${routine.title} » ne s'affichera plus, mais les complétions passées sont conservées dans les stats.`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Archiver',
-            style: 'destructive',
-            onPress: async () => {
-              await archiveRoutine(routine.id);
-              await reload();
-            },
-          },
-        ]
-      );
-    },
-    [reload]
-  );
+  const handleArchiveRoutine = useCallback((routine: Routine) => {
+    Alert.alert(
+      'Archiver cette routine ?',
+      `« ${routine.title} » ne s'affichera plus, mais les complétions passées sont conservées dans les stats.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Archiver',
+          style: 'destructive',
+          onPress: () => archiveRoutine(routine.id),
+        },
+      ]
+    );
+  }, []);
+
+  const closeModal = useCallback(() => {
+    // Dismissing the keyboard before unmounting the Modal contents avoids
+    // a stale-focus state on Android where the next open keeps the IME
+    // anchored on a TextInput that no longer exists in the tree.
+    Keyboard.dismiss();
+    setModal(null);
+  }, []);
 
   const submitModal = useCallback(async () => {
     if (!modal) return;
     if (modal.type === 'create-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
-        setModal(null);
+        closeModal();
         return;
       }
       const g = await createGroup(trimmed, modal.color);
-      setModal(null);
-      await setSetting(ACTIVE_GROUP_KEY, g.id);
-      setActiveGroupId(g.id);
-      await reload();
+      closeModal();
+      selectActiveGroup(g.id);
     } else if (modal.type === 'rename-group') {
       const trimmed = modal.name.trim();
       if (!trimmed) {
-        setModal(null);
+        closeModal();
         return;
       }
       await updateGroup(modal.id, { name: trimmed, color: modal.color });
-      setModal(null);
-      reload();
+      closeModal();
     } else if (modal.type === 'create-routine') {
       const trimmed = modal.name.trim();
       if (!trimmed || !activeGroupId) {
-        setModal(null);
+        closeModal();
         return;
       }
       await createRoutine({ groupId: activeGroupId, title: trimmed });
-      setModal(null);
-      await reload();
+      closeModal();
     }
-  }, [modal, activeGroupId, reload]);
+  }, [modal, activeGroupId, closeModal, selectActiveGroup]);
+
+  // FlatList ignores prop changes outside `data` unless `extraData` flips.
+  // Adding a routine changes routinesByGroup but leaves `data` (groups)
+  // intact → without this, the freshly added card stays invisible until
+  // something forces a re-render. Cards subscribe to their own stats /
+  // completions, so those don't need to participate in extraData.
+  const pagerExtraData = useMemo(
+    () => ({ routinesByGroup, expandedRoutineIds }),
+    [routinesByGroup, expandedRoutineIds]
+  );
 
   const styles = useMemo(
     () =>
@@ -314,6 +265,15 @@ export default function RoutinesTrackerScreen() {
         },
         scroll: {
           paddingBottom: theme.spacing.xl * 3,
+        },
+        hubTitle: {
+          fontSize: theme.font.xl,
+          fontWeight: '700',
+          color: theme.colors.text,
+          textAlign: 'center',
+          paddingHorizontal: theme.spacing.lg,
+          paddingTop: theme.spacing.md,
+          paddingBottom: theme.spacing.sm,
         },
         tabsWrap: {
           paddingHorizontal: theme.spacing.lg,
@@ -363,68 +323,6 @@ export default function RoutinesTrackerScreen() {
           paddingTop: theme.spacing.lg,
           paddingBottom: theme.spacing.sm,
         },
-        card: {
-          marginHorizontal: theme.spacing.lg,
-          marginBottom: theme.spacing.md,
-          padding: theme.spacing.lg,
-          borderRadius: theme.radius.lg,
-          backgroundColor: theme.colors.surfaceAlt,
-        },
-        cardHeader: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          marginBottom: theme.spacing.sm,
-        },
-        colorDot: {
-          width: 10,
-          height: 10,
-          borderRadius: 5,
-          marginRight: theme.spacing.sm,
-        },
-        cardIcon: {
-          width: 22,
-          height: 22,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginRight: theme.spacing.sm,
-        },
-        cardFooter: {
-          marginTop: theme.spacing.sm,
-          alignItems: 'center',
-        },
-        cardTitle: {
-          flex: 1,
-          fontSize: theme.font.lg,
-          fontWeight: '700',
-          color: theme.colors.text,
-        },
-        archiveBtn: {
-          padding: 6,
-        },
-        statsRow: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          marginBottom: theme.spacing.xs,
-        },
-        statBlock: {
-          flex: 1,
-        },
-        statLabel: {
-          fontSize: theme.font.xs,
-          color: theme.colors.textSubtle,
-          fontWeight: '700',
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-        },
-        statValue: {
-          fontSize: theme.font.xl,
-          fontWeight: '800',
-          color: theme.colors.text,
-          marginTop: 2,
-        },
-        statValueAccent: {
-          color: theme.colors.routine,
-        },
         empty: {
           padding: theme.spacing.xl,
           alignItems: 'center',
@@ -442,7 +340,7 @@ export default function RoutinesTrackerScreen() {
         fab: {
           position: 'absolute',
           right: theme.spacing.lg,
-          bottom: theme.spacing.lg,
+          bottom: theme.spacing.lg * 2 + 40,
           width: 56,
           height: 56,
           borderRadius: 28,
@@ -453,106 +351,32 @@ export default function RoutinesTrackerScreen() {
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.18,
           shadowRadius: 4,
-          elevation: 4,
-        },
-        modalBackdrop: {
-          flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.4)',
-          justifyContent: 'flex-end',
-        },
-        modalSheet: {
-          backgroundColor: theme.colors.surface,
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          padding: theme.spacing.lg,
-          paddingBottom: theme.spacing.xl,
-        },
-        modalTitle: {
-          fontSize: theme.font.lg,
-          fontWeight: '700',
-          color: theme.colors.text,
-          marginBottom: theme.spacing.md,
-        },
-        modalInput: {
-          fontSize: theme.font.lg,
-          color: theme.colors.text,
-          padding: theme.spacing.md,
-          backgroundColor: theme.colors.surfaceAlt,
-          borderRadius: theme.radius.md,
-          marginBottom: theme.spacing.lg,
-        },
-        modalColorLabel: {
-          fontSize: theme.font.xs,
-          fontWeight: '700',
-          color: theme.colors.textSubtle,
-          textTransform: 'uppercase',
-          letterSpacing: 0.5,
-          marginBottom: theme.spacing.sm,
-        },
-        modalColorRow: {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          gap: theme.spacing.sm,
-          marginBottom: theme.spacing.lg,
-        },
-        modalColorChip: {
-          width: 32,
-          height: 32,
-          borderRadius: 16,
-          borderWidth: 2,
-          borderColor: 'transparent',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-        modalColorChipSelected: {
-          borderColor: theme.colors.text,
-        },
-        modalColorChipEmpty: {
-          backgroundColor: theme.colors.surfaceAlt,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.border,
-        },
-        modalActions: {
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-          gap: theme.spacing.md,
-        },
-        modalBtn: {
-          paddingHorizontal: theme.spacing.lg,
-          paddingVertical: theme.spacing.sm,
-          borderRadius: theme.radius.md,
-        },
-        modalBtnPrimary: {
-          backgroundColor: theme.colors.routine,
-        },
-        modalBtnText: {
-          fontSize: theme.font.md,
-          fontWeight: '600',
-          color: theme.colors.textMuted,
-        },
-        modalBtnTextPrimary: {
-          color: theme.colors.textInverse,
+          elevation: 8,
+          zIndex: 10,
         },
       }),
     [theme]
   );
 
-  const modalTitle = useMemo(() => {
-    if (!modal) return '';
-    if (modal.type === 'create-group') return 'Nouveau groupe';
-    if (modal.type === 'rename-group') return 'Renommer le groupe';
-    return 'Nouvelle routine';
-  }, [modal]);
-
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Routines',
-          headerBackTitle: 'Retour',
-        }}
-      />
+    <SafeAreaView
+      style={styles.container}
+      edges={hubMode ? ['top', 'bottom'] : ['bottom']}
+    >
+      {!hubMode ? (
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: 'Routines',
+            headerBackTitle: 'Retour',
+            animation: 'none',
+          }}
+        />
+      ) : null}
+
+      {hubMode ? (
+        <Text style={styles.hubTitle}>Routines</Text>
+      ) : null}
 
       <View style={styles.tabsWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -597,6 +421,7 @@ export default function RoutinesTrackerScreen() {
         ref={pagerRef}
         style={{ flex: 1 }}
         data={groups}
+        extraData={pagerExtraData}
         keyExtractor={(g) => g.id}
         horizontal
         pagingEnabled
@@ -626,113 +451,38 @@ export default function RoutinesTrackerScreen() {
                   </Text>
                 </View>
               ) : (
-                groupRoutines.map((r) => {
-                  const s = stats[r.id];
-                  const c = completions[r.id] ?? new Set<string>();
-                  const iconName = (r.icon as FeatherName | null) ?? null;
-                  const expanded = expandedRoutineIds.has(r.id);
-                  return (
-                    <TouchableOpacity
-                      key={r.id}
-                      onPress={() => toggleExpanded(r.id)}
-                      activeOpacity={0.7}
-                      style={styles.card}
-                    >
-                      <View style={styles.cardHeader}>
-                        {iconName ? (
-                          <View style={styles.cardIcon}>
-                            <Feather
-                              name={iconName}
-                              size={18}
-                              color={groupColor}
-                            />
-                          </View>
-                        ) : (
-                          <View
-                            style={[
-                              styles.colorDot,
-                              { backgroundColor: groupColor },
-                            ]}
-                          />
-                        )}
-                        <Text style={styles.cardTitle}>{r.title}</Text>
-                        <TouchableOpacity
-                          onPress={() => router.push(`/routines/${r.id}`)}
-                          hitSlop={8}
-                          style={styles.archiveBtn}
-                        >
-                          <Feather
-                            name="edit-2"
-                            size={16}
-                            color={theme.colors.textMuted}
-                          />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => handleArchiveRoutine(r)}
-                          hitSlop={8}
-                          style={styles.archiveBtn}
-                        >
-                          <Feather
-                            name="archive"
-                            size={16}
-                            color={theme.colors.textMuted}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.statsRow}>
-                        <View style={styles.statBlock}>
-                          <Text style={styles.statLabel}>Streak</Text>
-                          <Text
-                            style={[
-                              styles.statValue,
-                              { color: groupColor },
-                            ]}
-                          >
-                            {s?.streak ?? 0}j
-                          </Text>
-                        </View>
-                        <View style={styles.statBlock}>
-                          <Text style={styles.statLabel}>30 derniers j.</Text>
-                          <Text style={styles.statValue}>
-                            {s ? Math.round(s.ratio30d * 100) : 0}%
-                          </Text>
-                        </View>
-                        <View style={styles.statBlock}>
-                          <Text style={styles.statLabel}>Complétions</Text>
-                          <Text style={styles.statValue}>
-                            {s?.completed30d ?? 0}
-                          </Text>
-                        </View>
-                      </View>
-                      {expanded ? (
-                        <RoutineMonthHeatmap
-                          year={today.getFullYear()}
-                          month={today.getMonth()}
-                          completedDays={c}
-                          color={groupColor}
-                          todayKey={todayKey}
-                        />
-                      ) : (
-                        <RoutineWeekStrip
-                          todayKey={todayKey}
-                          completedDays={c}
-                          color={groupColor}
-                        />
-                      )}
-                      <View style={styles.cardFooter}>
-                        <Feather
-                          name={expanded ? 'chevron-up' : 'chevron-down'}
-                          size={16}
-                          color={theme.colors.textMuted}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
+                groupRoutines.map((r) => (
+                  <RoutineStatsCard
+                    key={r.id}
+                    routine={r}
+                    groupColor={groupColor}
+                    todayKey={todayKey}
+                    monthStart={monthStart}
+                    monthEnd={monthEnd}
+                    todayYear={today.getFullYear()}
+                    todayMonth={today.getMonth()}
+                    expanded={expandedRoutineIds.has(r.id)}
+                    onToggleExpanded={toggleExpanded}
+                    onEdit={(id) => router.push(`/routines/${id}`)}
+                    onArchive={handleArchiveRoutine}
+                  />
+                ))
               )}
             </ScrollView>
           );
         }}
+      />
+
+      <DragHandle
+        direction="up"
+        onTrigger={() => {
+          // Always land on TODAY's real date, regardless of when the
+          // screen mounted or what's on the back stack. router.back()
+          // would return to whatever day the user came from.
+          if (onSwipeUp) onSwipeUp();
+          else router.replace(`/calendar/${toDayKey(new Date())}`);
+        }}
+        label="Jour"
       />
 
       {activeGroupId ? (
@@ -745,118 +495,13 @@ export default function RoutinesTrackerScreen() {
         </TouchableOpacity>
       ) : null}
 
-      <DragHandle
-        direction="up"
-        onTrigger={() => {
-          // Always land on TODAY's real date, regardless of when the
-          // screen mounted or what's on the back stack. router.back()
-          // would return to whatever day the user came from.
-          router.replace(`/calendar/${toDayKey(new Date())}`);
-        }}
-        label="Jour"
+      <RoutinesModalSheet
+        modal={modal}
+        kbHeight={kbHeight}
+        onChange={setModal}
+        onClose={closeModal}
+        onSubmit={submitModal}
       />
-
-      <Modal
-        visible={modal !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModal(null)}
-        statusBarTranslucent
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setModal(null)}
-          style={styles.modalBackdrop}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => {}}
-            style={{ marginBottom: kbHeight }}
-          >
-            <View style={styles.modalSheet}>
-              <Text style={styles.modalTitle}>{modalTitle}</Text>
-              <TextInput
-                value={modal?.name ?? ''}
-                onChangeText={(v) =>
-                  setModal((m) => (m ? { ...m, name: v } : m))
-                }
-                placeholder={
-                  modal?.type === 'create-routine'
-                    ? 'Titre de la routine…'
-                    : 'Nom du groupe…'
-                }
-                placeholderTextColor={theme.colors.textSubtle}
-                style={styles.modalInput}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={submitModal}
-              />
-              {modal &&
-              (modal.type === 'create-group' ||
-                modal.type === 'rename-group') ? (
-                <>
-                  <Text style={styles.modalColorLabel}>Couleur</Text>
-                  <View style={styles.modalColorRow}>
-                    {TASK_COLORS.map((c) => {
-                      const selected = modal.color === c.value;
-                      return (
-                        <TouchableOpacity
-                          key={c.id}
-                          onPress={() =>
-                            setModal((m) =>
-                              m &&
-                              (m.type === 'create-group' ||
-                                m.type === 'rename-group')
-                                ? { ...m, color: c.value }
-                                : m
-                            )
-                          }
-                          style={[
-                            styles.modalColorChip,
-                            c.value
-                              ? { backgroundColor: c.value }
-                              : styles.modalColorChipEmpty,
-                            selected && styles.modalColorChipSelected,
-                          ]}
-                        >
-                          {!c.value && selected ? (
-                            <Feather
-                              name="check"
-                              size={14}
-                              color={theme.colors.text}
-                            />
-                          ) : null}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              ) : null}
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  onPress={() => setModal(null)}
-                  style={styles.modalBtn}
-                >
-                  <Text style={styles.modalBtnText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={submitModal}
-                  style={[styles.modalBtn, styles.modalBtnPrimary]}
-                >
-                  <Text
-                    style={[
-                      styles.modalBtnText,
-                      styles.modalBtnTextPrimary,
-                    ]}
-                  >
-                    Valider
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </SafeAreaView>
   );
 }
