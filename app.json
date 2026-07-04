@@ -16,7 +16,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jarvis.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Cette app utilise la caméra pour capturer des photos liées à vos objectifs et tâches."
       }
     },
     "android": {
@@ -24,7 +25,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.jarvis.app"
+      "package": "com.jarvis.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,12 +38,36 @@
     "plugins": [
       "expo-dev-client",
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-updates",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Cette app utilise la caméra pour capturer des photos liées à vos objectifs et tâches.",
+          "microphonePermission": "Cette app utilise le micro pour enregistrer des vidéos.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#ffffff"
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "8e024141-311e-4237-a9aa-2b606edb867c"
       }
+    },
+    "updates": {
+      "url": "http://46.202.171.191/updates",
+      "enabled": true,
+      "fallbackToCacheTimeout": 30000,
+      "checkAutomatically": "ON_LOAD"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }
