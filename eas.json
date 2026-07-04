@@ -10,9 +10,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "android": {
-        "resourceClass": "large"
-      },
       "env": {
         "APP_VARIANT": "preview"
       }
