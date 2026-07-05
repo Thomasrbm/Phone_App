@@ -103,18 +103,17 @@ export default function DayHeader({
           paddingVertical: theme.spacing.sm,
         },
         cancelLink: {
+          ...theme.typo.body,
+          fontWeight: '600',
           color: theme.colors.accent,
-          fontSize: theme.font.md,
-          fontWeight: '500',
         },
         selectionTitle: {
-          fontSize: theme.font.lg,
+          ...theme.typo.heading,
           fontWeight: '700',
           color: theme.colors.text,
         },
         dateTitle: {
-          fontSize: theme.font.xl,
-          fontWeight: '700',
+          ...theme.typo.title,
           color: theme.colors.text,
           textAlign: 'center',
           paddingHorizontal: theme.spacing.lg,

@@ -382,7 +382,7 @@ const DayContent = memo(function DayContent({
         },
         searchInput: {
           flex: 1,
-          fontSize: theme.font.md,
+          ...theme.typo.body,
           color: theme.colors.text,
           paddingVertical: 4,
         },
@@ -401,11 +401,9 @@ const DayContent = memo(function DayContent({
           borderTopColor: theme.colors.border,
         },
         sectionHeader: {
-          fontSize: theme.font.xs,
+          ...theme.typo.micro,
           color: theme.colors.textSubtle,
-          fontWeight: '700',
           textTransform: 'uppercase',
-          letterSpacing: 0.5,
         },
         sectionHeaderLeft: {
           flexDirection: 'row',
@@ -420,9 +418,8 @@ const DayContent = memo(function DayContent({
         },
         // /POLISH:section-dots
         selectAllBtn: {
-          fontSize: theme.font.sm,
+          ...theme.typo.label,
           color: '#6940a5',
-          fontWeight: '700',
           textTransform: 'uppercase',
           letterSpacing: 0.3,
         },
@@ -435,13 +432,14 @@ const DayContent = memo(function DayContent({
           marginBottom: theme.spacing.md,
         },
         emptyText: {
-          fontSize: theme.font.lg,
+          ...theme.typo.heading,
+          fontWeight: '500',
           color: theme.colors.textMuted,
         },
         emptyHint: {
-          fontSize: theme.font.md,
+          ...theme.typo.caption,
           color: theme.colors.textMuted,
-          marginTop: theme.spacing.sm,
+          marginTop: theme.spacing.xs,
         },
         deleteBar: {
           flexDirection: 'row',
@@ -452,9 +450,9 @@ const DayContent = memo(function DayContent({
           gap: theme.spacing.sm,
         },
         deleteBarText: {
-          color: theme.colors.textInverse,
-          fontSize: theme.font.lg,
+          ...theme.typo.heading,
           fontWeight: '700',
+          color: theme.colors.textInverse,
         },
         hub: {
           paddingHorizontal: theme.spacing.lg,
@@ -482,16 +480,11 @@ const DayContent = memo(function DayContent({
           backgroundColor: `${theme.colors.surface}b3`,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: `${theme.colors.border}80`,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 6,
-          elevation: 3,
+          ...theme.elevation.md,
         },
         backToTodayLabel: {
-          fontSize: theme.font.sm,
+          ...theme.typo.label,
           color: theme.colors.today,
-          fontWeight: '600',
         },
       }),
     [theme]
