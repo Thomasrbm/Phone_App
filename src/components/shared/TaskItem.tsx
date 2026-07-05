@@ -44,8 +44,10 @@ function TaskItemImpl({
       ? `Fait à ${format(parseISO(task.doneAt), 'HH:mm')}`
       : task.description;
 
-  const hasColor = task.color !== null;
-  const tickColor = task.color ?? theme.colors.textMuted;
+  // When checked, the box fills solidly (task colour if set, else the
+  // done green) with a white tick — a far clearer "done" signal than the
+  // previous muted outline-only state.
+  const checkFill = task.color ?? theme.colors.done;
   const rowBg = softColorBg(task.color, theme.colors.swipeBlendBase);
 
   const styles = useMemo(
@@ -55,15 +57,15 @@ function TaskItemImpl({
           flexDirection: 'row',
           alignItems: 'center',
           paddingHorizontal: theme.spacing.lg,
-          height: 64,
+          height: 68,
           borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: theme.colors.border,
+          borderBottomColor: theme.colors.borderSubtle,
           backgroundColor: theme.colors.surface,
         },
         // No row-wide opacity: it lets the swipe-action background
         // bleed through and makes done rows look transparent during
-        // swipe. The done state is conveyed by titleDone (line-through
-        // + muted color) and subtitleDone below.
+        // swipe. The done state is conveyed by the filled checkbox +
+        // titleDone (line-through + muted color) and subtitleDone below.
         rowDone: {},
         subtitleDone: {
           color: theme.colors.textSubtle,
@@ -75,11 +77,11 @@ function TaskItemImpl({
           marginRight: theme.spacing.md,
         },
         box: {
-          width: 24,
-          height: 24,
-          borderRadius: theme.radius.sm,
-          borderWidth: 1.5,
-          borderColor: theme.colors.textMuted,
+          width: 26,
+          height: 26,
+          borderRadius: theme.radius.xs,
+          borderWidth: 2,
+          borderColor: theme.colors.border,
           alignItems: 'center',
           justifyContent: 'center',
         },
@@ -87,11 +89,11 @@ function TaskItemImpl({
           marginRight: theme.spacing.md,
         },
         selectCircle: {
-          width: 24,
-          height: 24,
-          borderRadius: 12,
-          borderWidth: 1.5,
-          borderColor: theme.colors.textMuted,
+          width: 26,
+          height: 26,
+          borderRadius: 13,
+          borderWidth: 2,
+          borderColor: theme.colors.border,
           alignItems: 'center',
           justifyContent: 'center',
         },
@@ -100,8 +102,8 @@ function TaskItemImpl({
           borderColor: theme.colors.accent,
         },
         iconBox: {
-          width: 24,
-          height: 24,
+          width: 26,
+          height: 26,
           alignItems: 'center',
           justifyContent: 'center',
           marginRight: theme.spacing.sm,
@@ -111,7 +113,7 @@ function TaskItemImpl({
           justifyContent: 'center',
         },
         title: {
-          fontSize: theme.font.lg,
+          ...theme.typo.body,
           color: theme.colors.text,
         },
         titleDone: {
@@ -119,7 +121,7 @@ function TaskItemImpl({
           textDecorationLine: 'line-through',
         },
         subtitle: {
-          fontSize: theme.font.sm,
+          ...theme.typo.caption,
           color: theme.colors.textMuted,
           marginTop: 2,
         },
@@ -207,9 +209,9 @@ function TaskItemImpl({
           <View
             style={[
               styles.box,
-              task.done && hasColor && {
-                backgroundColor: tickColor,
-                borderColor: tickColor,
+              task.done && {
+                backgroundColor: checkFill,
+                borderColor: checkFill,
               },
             ]}
           >
@@ -217,9 +219,7 @@ function TaskItemImpl({
               <Feather
                 name="check"
                 size={16}
-                color={
-                  hasColor ? theme.colors.textInverse : theme.colors.textMuted
-                }
+                color={theme.colors.textInverse}
               />
             ) : null}
           </View>
